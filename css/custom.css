@@ -1,0 +1,76 @@
+/* Code block theme override. */
+.article-entry figure.highlight,
+.article-entry pre {
+  background: #101820;
+  border-color: #1e2d3a;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(16, 24, 32, 0.18);
+  color: #d6deeb;
+}
+
+.article-entry figure.highlight {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 16px 18px;
+}
+
+.article-entry figure.highlight pre,
+.article-entry pre code {
+  background: transparent;
+  color: inherit;
+}
+
+.article-entry .highlight .gutter pre {
+  color: #5f7386;
+}
+
+.article-entry .highlight .line.marked {
+  background: #1d3143;
+}
+
+pre .comment,
+pre .title {
+  color: #637777;
+}
+
+pre .keyword,
+pre .javascript .function {
+  color: #c792ea;
+}
+
+pre .string,
+pre .value,
+pre .inheritance,
+pre .header,
+pre .ruby .symbol,
+pre .xml .cdata {
+  color: #ecc48d;
+}
+
+pre .number,
+pre .preprocessor,
+pre .built_in,
+pre .literal,
+pre .params,
+pre .constant {
+  color: #f78c6c;
+}
+
+pre .function,
+pre .python .decorator,
+pre .python .title,
+pre .ruby .function .title,
+pre .ruby .title .keyword,
+pre .perl .sub,
+pre .javascript .title,
+pre .coffeescript .title {
+  color: #82aaff;
+}
+
+pre .class,
+pre .ruby .class .title,
+pre .css .rules .attribute,
+pre .tag,
+pre .attribute {
+  color: #addb67;
+}
