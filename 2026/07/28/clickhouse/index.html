@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>ClickHouse | 碎碎念</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="ClickHouse 是一个面向分析场景的列式数据库，常见于日志分析、指标分析、用户行为分析和实时数仓。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ClickHouse">
+<meta property="og:url" content="http://example.com/2026/07/28/clickhouse/index.html">
+<meta property="og:site_name" content="碎碎念">
+<meta property="og:description" content="ClickHouse 是一个面向分析场景的列式数据库，常见于日志分析、指标分析、用户行为分析和实时数仓。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-07-27T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-07-28T15:38:17.500Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="clickhouse">
+<meta property="article:tag" content="database">
+<meta property="article:tag" content="olap">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="alternate" href="/atom.xml" title="碎碎念" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fork-awesome@1.2.0/css/fork-awesome.min.css">
+
+<meta name="generator" content="Hexo 8.1.2">  <link rel="stylesheet" href="/css/custom.css">
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">碎碎念</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">思绪来得快去得也快，偶尔会在这里停留</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS Feed"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="Search"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://example.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-clickhouse" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/2026/07/28/clickhouse/" class="article-date">
+  <time class="dt-published" datetime="2026-07-27T16:00:00.000Z" itemprop="datePublished">2026-07-28</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/">数据库</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      ClickHouse
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <p>ClickHouse 是一个面向分析场景的列式数据库，常见于日志分析、指标分析、用户行为分析和实时数仓。</p>
+<span id="more"></span>
+
+<h1 id="1-为什么是列式存储"><a href="#1-为什么是列式存储" class="headerlink" title="1. 为什么是列式存储"></a>1. 为什么是列式存储</h1><p>传统行式数据库更适合事务场景，比如按照主键查一整行、更新一条订单、维护账户余额。分析场景不一样，它通常只关心少量列，却要扫描大量行。</p>
+<p>例如一张用户行为表有几十个字段，但一次分析可能只需要：</p>
+<ul>
+<li><code>event_time</code></li>
+<li><code>user_id</code></li>
+<li><code>event_name</code></li>
+<li><code>platform</code></li>
+<li><code>duration</code></li>
+</ul>
+<p>列式存储的优势就在这里：查询只读取需要的列，不必把整行数据都读出来。数据按列连续存放后，同一列的数据类型相同，也更容易压缩。</p>
+<h1 id="2-ClickHouse-适合什么"><a href="#2-ClickHouse-适合什么" class="headerlink" title="2. ClickHouse 适合什么"></a>2. ClickHouse 适合什么</h1><p>ClickHouse 最典型的场景是 OLAP，也就是在线分析处理。它擅长回答这类问题：</p>
+<ul>
+<li>昨天每个渠道的新增用户是多少</li>
+<li>最近 7 天接口 P95 延迟是多少</li>
+<li>某个活动页每小时点击量如何变化</li>
+<li>按地区、设备、版本聚合后的留存表现如何</li>
+</ul>
+<p>这些查询通常有几个共同点：读多写少、扫描量大、聚合多、返回结果少。ClickHouse 为这种模式做了很多优化。</p>
+<h1 id="3-ClickHouse-的数据类型"><a href="#3-ClickHouse-的数据类型" class="headerlink" title="3. ClickHouse 的数据类型"></a>3. ClickHouse 的数据类型</h1><p>ClickHouse 的类型系统比较丰富。因为它主要面向分析查询，所以很多类型的设计都围绕压缩率、扫描效率和计算性能展开。</p>
+<h2 id="3-1-整型"><a href="#3-1-整型" class="headerlink" title="3.1 整型"></a>3.1 整型</h2><p>有符号整型：</p>
+<ul>
+<li><code>Int8</code></li>
+<li><code>Int16</code></li>
+<li><code>Int32</code></li>
+<li><code>Int64</code></li>
+<li><code>Int128</code></li>
+<li><code>Int256</code></li>
+</ul>
+<p>无符号整型：</p>
+<ul>
+<li><code>UInt8</code></li>
+<li><code>UInt16</code></li>
+<li><code>UInt32</code></li>
+<li><code>UInt64</code></li>
+<li><code>UInt128</code></li>
+<li><code>UInt256</code></li>
+</ul>
+<p>如果字段不会出现负数，比如用户 id、次数、状态码，一般优先使用 <code>UInt</code> 系列。类型越小越省空间，但也要注意取值范围，避免后续扩容困难。</p>
+<h2 id="3-2-浮点型"><a href="#3-2-浮点型" class="headerlink" title="3.2 浮点型"></a>3.2 浮点型</h2><p>浮点型包括：</p>
+<ul>
+<li><code>Float32</code></li>
+<li><code>Float64</code></li>
+</ul>
+<p>它们底层遵循 IEEE 754 标准。</p>
+<p>需要注意的是，浮点数不适合表达必须精确计算的金额、余额、订单价格等字段。这类字段应该使用 <code>Decimal</code>。</p>
+<h2 id="3-3-布尔值"><a href="#3-3-布尔值" class="headerlink" title="3.3 布尔值"></a>3.3 布尔值</h2><p>ClickHouse 没有传统意义上单独的布尔存储类型。通常可以用 <code>UInt8</code> 表示布尔值：</p>
+<ul>
+<li><code>0</code> 表示 false</li>
+<li><code>1</code> 表示 true</li>
+</ul>
+<h2 id="3-4-Decimal"><a href="#3-4-Decimal" class="headerlink" title="3.4 Decimal"></a>3.4 Decimal</h2><p><code>Decimal</code> 用于精确小数。它底层不是直接用浮点数存储，而是通过整数放缩来表示小数，因此可以在加减乘等运算中尽量保持精度。</p>
+<p>常见声明方式：</p>
+<ul>
+<li><code>Decimal32(S)</code>：最多 9 位有效数字，<code>S</code> 表示小数位数。</li>
+<li><code>Decimal64(S)</code>：最多 18 位有效数字，<code>S</code> 表示小数位数。</li>
+<li><code>Decimal128(S)</code>：最多 38 位有效数字，<code>S</code> 表示小数位数。</li>
+<li><code>Decimal256(S)</code>：最多 76 位有效数字，<code>S</code> 表示小数位数。</li>
+</ul>
+<p>例如 <code>Decimal32(5)</code> 表示总有效位数最多 9 位，其中小数部分保留 5 位，整数部分最多 4 位。<code>123.123123123</code> 写入时会按字段精度保留到 5 位小数。</p>
+<h2 id="3-5-字符串类型"><a href="#3-5-字符串类型" class="headerlink" title="3.5 字符串类型"></a>3.5 字符串类型</h2><p>常见字符串类型有：</p>
+<ul>
+<li><code>String</code>：变长字符串，最常用。</li>
+<li><code>FixedString(N)</code>：固定长度字符串，不足会补零，适合长度固定的数据。</li>
+</ul>
+<h2 id="3-6-时间类型"><a href="#3-6-时间类型" class="headerlink" title="3.6 时间类型"></a>3.6 时间类型</h2><p>常见时间类型包括：</p>
+<ul>
+<li><code>Date</code>：日期，格式类似 <code>2019-12-16</code>。</li>
+<li><code>DateTime</code>：日期时间，精度到秒，格式类似 <code>2019-12-16 20:50:10</code>。</li>
+<li><code>DateTime64</code>：支持亚秒精度，格式类似 <code>2019-12-16 20:50:10.666</code>。</li>
+</ul>
+<p>分析场景里经常会同时保留日期列和时间列。例如 <code>event_date</code> 用于分区，<code>event_time</code> 用于精确过滤和排序。</p>
+<h2 id="3-7-Array-T"><a href="#3-7-Array-T" class="headerlink" title="3.7 Array(T)"></a>3.7 Array(T)</h2><p><code>Array(T)</code> 表示数组，<code>T</code> 可以是任意类型，也可以继续是数组类型。</p>
+<p>不过多维数组不建议滥用。一方面它会让查询和存储变复杂，另一方面 ClickHouse 对多维数组的部分场景支持有限，比如某些表引擎或索引场景下会受到限制。</p>
+<p>如果一个字段经常需要展开、过滤、聚合，要先想清楚它到底应该是数组，还是应该拆成明细表。</p>
+<h2 id="3-8-Nullable-T"><a href="#3-8-Nullable-T" class="headerlink" title="3.8 Nullable(T)"></a>3.8 Nullable(T)</h2><p><code>Nullable(T)</code> 表示字段可以为 <code>NULL</code>，例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE TABLE</span> t_null</span><br><span class="line">(</span><br><span class="line">    x Int8,</span><br><span class="line">    y Nullable(Int8)</span><br><span class="line">)</span><br><span class="line">ENGINE <span class="operator">=</span> TinyLog;</span><br></pre></td></tr></table></figure>
+
+<p>但在 ClickHouse 里，<code>Nullable</code> 通常会带来额外存储和计算成本。因为系统需要额外维护空值标记，查询时也要处理空值分支。</p>
+<p>所以建表时要谨慎使用 <code>Nullable</code>。如果业务允许，很多场景可以用没有业务含义的默认值代替：</p>
+<ul>
+<li>整型用 <code>-1</code> 或 <code>0</code></li>
+<li>字符串用空字符串或特殊值</li>
+<li>时间用约定的默认时间</li>
+</ul>
+<h1 id="4-ClickHouse-的表引擎"><a href="#4-ClickHouse-的表引擎" class="headerlink" title="4. ClickHouse 的表引擎"></a>4. ClickHouse 的表引擎</h1><p>表引擎决定了表的数据如何存储、如何读取，以及支持哪些能力。可以把它理解成 ClickHouse 表的底层实现策略。</p>
+<p>它通常会影响这些事情：</p>
+<ol>
+<li>数据写到哪里，以及从哪里读取。</li>
+<li>是否支持索引。</li>
+<li>是否支持并发读写。</li>
+<li>是否支持副本、分片、分布式查询。</li>
+<li>是否适合生产环境长期存储。</li>
+</ol>
+<p>表引擎名称是大小写敏感的。比如 <code>MergeTree</code> 和 <code>mergetree</code> 不是一回事。</p>
+<h2 id="4-1-TinyLog"><a href="#4-1-TinyLog" class="headerlink" title="4.1 TinyLog"></a>4.1 TinyLog</h2><p><code>TinyLog</code> 会以列文件的形式把数据保存在磁盘上。它不支持索引，也没有完整的并发控制能力，一般只适合保存少量数据的小表。</p>
+<p>它的生产环境价值比较有限，更适合本地练习、临时测试，或者用来理解 ClickHouse 的基础行为。</p>
+<h2 id="4-2-Memory"><a href="#4-2-Memory" class="headerlink" title="4.2 Memory"></a>4.2 Memory</h2><p><code>Memory</code> 表引擎把数据保存在内存中，服务重启后数据会消失。</p>
+<p>它的优点是读写很快，简单查询性能非常高；缺点也很明显：数据不持久化，不适合作为正式数据存储。</p>
+<p>常见用途包括：</p>
+<ul>
+<li>临时表</li>
+<li>测试表</li>
+<li>中间结果缓存</li>
+<li>小规模维表实验</li>
+</ul>
+<h2 id="4-3-数据管道集成类引擎"><a href="#4-3-数据管道集成类引擎" class="headerlink" title="4.3 数据管道集成类引擎"></a>4.3 数据管道集成类引擎</h2><p>ClickHouse 还有一些用于数据管道集成的表引擎，比如 Kafka、MySQL 等。它们的重点不是长期存储数据，而是把外部系统映射到 ClickHouse 查询或导入流程中。</p>
+<p>例如 Kafka 引擎常用于消费消息队列，再配合物化视图把数据写入真正的存储表。MySQL 引擎则可以把 MySQL 表映射成 ClickHouse 中可查询的外部表。</p>
+<p>这类引擎更像连接器：负责接入数据源，但最终长期存储通常还是会落到更适合分析的表引擎里。</p>
+<p>下面用本地 Docker 跑一个最小例子：启动一个 MySQL 容器，写入几条数据，然后从 ClickHouse 里读取。</p>
+<p>先启动 MySQL：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">docker run --name blog-mysql \</span><br><span class="line">  -e MYSQL_ROOT_PASSWORD=blogpass \</span><br><span class="line">  -e MYSQL_DATABASE=demo \</span><br><span class="line">  -p 3306:3306 \</span><br><span class="line">  -d mysql:8.0</span><br></pre></td></tr></table></figure>
+
+<p>等 MySQL 初始化完成：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> blog-mysql mysqladmin ping -uroot -pblogpass --silent</span><br></pre></td></tr></table></figure>
+
+<p>创建测试表并写入数据：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> blog-mysql mysql -uroot -pblogpass demo -e <span class="string">&quot;</span></span><br><span class="line"><span class="string">CREATE TABLE events (</span></span><br><span class="line"><span class="string">  id BIGINT PRIMARY KEY AUTO_INCREMENT,</span></span><br><span class="line"><span class="string">  event_time DATETIME NOT NULL,</span></span><br><span class="line"><span class="string">  user_id BIGINT NOT NULL,</span></span><br><span class="line"><span class="string">  event_name VARCHAR(64) NOT NULL,</span></span><br><span class="line"><span class="string">  platform VARCHAR(32) NOT NULL,</span></span><br><span class="line"><span class="string">  duration DECIMAL(10,3) NOT NULL</span></span><br><span class="line"><span class="string">);</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">INSERT INTO events (event_time, user_id, event_name, platform, duration) VALUES</span></span><br><span class="line"><span class="string">(&#x27;2026-07-28 10:00:00&#x27;, 1001, &#x27;page_view&#x27;, &#x27;web&#x27;, 1.235),</span></span><br><span class="line"><span class="string">(&#x27;2026-07-28 10:01:00&#x27;, 1002, &#x27;click&#x27;, &#x27;ios&#x27;, 0.420),</span></span><br><span class="line"><span class="string">(&#x27;2026-07-28 10:02:00&#x27;, 1001, &#x27;purchase&#x27;, &#x27;web&#x27;, 29.990),</span></span><br><span class="line"><span class="string">(&#x27;2026-07-28 10:03:00&#x27;, 1003, &#x27;page_view&#x27;, &#x27;android&#x27;, 2.100);</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">SELECT * FROM events;</span></span><br><span class="line"><span class="string">&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>ClickHouse 容器要访问 MySQL 容器，需要先拿到 MySQL 容器的内网 IP：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">docker inspect -f <span class="string">&#x27;&#123;&#123;range.NetworkSettings.Networks&#125;&#125;&#123;&#123;.IPAddress&#125;&#125;&#123;&#123;end&#125;&#125;&#x27;</span> blog-mysql</span><br></pre></td></tr></table></figure>
+
+<p>假设得到的是 <code>172.17.0.3</code>，可以先用 <code>mysql()</code> 表函数直接查：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> clickhouse-server clickhouse-client --query <span class="string">&quot;</span></span><br><span class="line"><span class="string">SELECT id, user_id, event_name, platform, duration</span></span><br><span class="line"><span class="string">FROM mysql(&#x27;172.17.0.3:3306&#x27;, &#x27;demo&#x27;, &#x27;events&#x27;, &#x27;root&#x27;, &#x27;blogpass&#x27;)</span></span><br><span class="line"><span class="string">ORDER BY id</span></span><br><span class="line"><span class="string">&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>如果想把 MySQL 映射成 ClickHouse 里的一个数据库，可以用 <code>MySQL</code> Database Engine：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> clickhouse-server clickhouse-client --multiquery --query <span class="string">&quot;</span></span><br><span class="line"><span class="string">DROP DATABASE IF EXISTS mysql_demo;</span></span><br><span class="line"><span class="string">CREATE DATABASE mysql_demo</span></span><br><span class="line"><span class="string">ENGINE = MySQL(&#x27;172.17.0.3:3306&#x27;, &#x27;demo&#x27;, &#x27;root&#x27;, &#x27;blogpass&#x27;);</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">SHOW TABLES FROM mysql_demo;</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">SELECT event_name, count() AS cnt, sum(duration) AS total_duration</span></span><br><span class="line"><span class="string">FROM mysql_demo.events</span></span><br><span class="line"><span class="string">GROUP BY event_name</span></span><br><span class="line"><span class="string">ORDER BY event_name;</span></span><br><span class="line"><span class="string">&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>查询结果类似：</p>
+<figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">click      1    0.42</span><br><span class="line">page_view  2    3.335</span><br><span class="line">purchase   1    29.99</span><br></pre></td></tr></table></figure>
+
+<p>再往 MySQL 里插一条数据：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">docker <span class="built_in">exec</span> blog-mysql mysql -uroot -pblogpass demo -e <span class="string">&quot;</span></span><br><span class="line"><span class="string">INSERT INTO events (event_time, user_id, event_name, platform, duration)</span></span><br><span class="line"><span class="string">VALUES (&#x27;2026-07-28 10:04:00&#x27;, 1004, &#x27;click&#x27;, &#x27;web&#x27;, 0.880);</span></span><br><span class="line"><span class="string">&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>回到 ClickHouse 查询，能立刻看到新的聚合结果：</p>
+<figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">click      2    1.3</span><br><span class="line">page_view  2    3.335</span><br><span class="line">purchase   1    29.99</span><br></pre></td></tr></table></figure>
+
+<p>需要注意：这种方式是 ClickHouse 读取 MySQL 外部表，不是把数据真正同步进 ClickHouse。它适合查询外部数据、做临时联邦查询，或者接入少量维表。如果要持续导入大量数据，通常会用 Kafka 引擎、物化视图，或者专门的数据同步工具。</p>
+<h1 id="5-MergeTree-家族"><a href="#5-MergeTree-家族" class="headerlink" title="5. MergeTree 家族"></a>5. MergeTree 家族</h1><p>TODO</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://example.com/2026/07/28/clickhouse/" data-id="cuidcwKgCbZNzdToIXa3wA9TH" data-title="ClickHouse" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/clickhouse/" rel="tag">clickhouse</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/database/" rel="tag">database</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/olap/" rel="tag">olap</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2026/07/27/kratos/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">Kratos</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/">数据库</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/">源码分析</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tags</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/clickhouse/" rel="tag">clickhouse</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/database/" rel="tag">database</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/go/" rel="tag">go</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kratos/" rel="tag">kratos</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/olap/" rel="tag">olap</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" rel="tag">分布式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tag Cloud</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/clickhouse/" style="font-size: 10px;">clickhouse</a> <a href="/tags/database/" style="font-size: 10px;">database</a> <a href="/tags/go/" style="font-size: 10px;">go</a> <a href="/tags/kratos/" style="font-size: 10px;">kratos</a> <a href="/tags/olap/" style="font-size: 10px;">olap</a> <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" style="font-size: 10px;">分布式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Archives</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2026/07/">July 2026</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2026/07/28/clickhouse/">ClickHouse</a>
+          </li>
+        
+          <li>
+            <a href="/2026/07/27/kratos/">Kratos</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2026 John Doe<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>
