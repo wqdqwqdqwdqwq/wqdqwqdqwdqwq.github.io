@@ -14,7 +14,7 @@
 <meta property="og:description" content="ClickHouse 是一个面向分析场景的列式数据库，常见于日志分析、指标分析、用户行为分析和实时数仓。">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-07-27T16:00:00.000Z">
-<meta property="article:modified_time" content="2026-07-28T15:38:17.500Z">
+<meta property="article:modified_time" content="2026-08-04T11:56:51.607Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="clickhouse">
 <meta property="article:tag" content="database">
@@ -247,7 +247,111 @@
 <figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">click      2    1.3</span><br><span class="line">page_view  2    3.335</span><br><span class="line">purchase   1    29.99</span><br></pre></td></tr></table></figure>
 
 <p>需要注意：这种方式是 ClickHouse 读取 MySQL 外部表，不是把数据真正同步进 ClickHouse。它适合查询外部数据、做临时联邦查询，或者接入少量维表。如果要持续导入大量数据，通常会用 Kafka 引擎、物化视图，或者专门的数据同步工具。</p>
-<h1 id="5-MergeTree-家族"><a href="#5-MergeTree-家族" class="headerlink" title="5. MergeTree 家族"></a>5. MergeTree 家族</h1><p>TODO</p>
+<h1 id="5-MergeTree-家族"><a href="#5-MergeTree-家族" class="headerlink" title="5. MergeTree 家族"></a>5. MergeTree 家族</h1><p><code>MergeTree</code> 是 ClickHouse 里最重要的一类表引擎。大多数生产表最终都会落到 <code>MergeTree</code> 或它的变体上。</p>
+<p>它解决的核心问题是：如何把大量数据按列存储起来，同时还能利用分区、排序键、稀疏索引和后台合并，让分析查询尽量少扫数据。</p>
+<h2 id="5-1-分区"><a href="#5-1-分区" class="headerlink" title="5.1 分区"></a>5.1 分区</h2><p>分区的主要作用是降低扫描范围，优化查询速度。</p>
+<p>如果建表时不写 <code>PARTITION BY</code>，表就只有一个默认分区。数据量小时这没什么问题，但数据量大了以后，查询、删除、归档都会变得不方便。</p>
+<p>一个简单例子：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ENGINE <span class="operator">=</span> MergeTree</span><br><span class="line"><span class="keyword">PARTITION</span> <span class="keyword">BY</span> toDate(visit_time)</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> (user_id, visit_time)</span><br><span class="line">SETTINGS index_granularity <span class="operator">=</span> <span class="number">8192</span></span><br></pre></td></tr></table></figure>
+
+<p>这里按访问日期分区。查询带上日期条件时，ClickHouse 可以先排除不相关分区，只扫描命中的那部分数据。</p>
+<p>分区还有一个额外好处：面对跨分区查询时，ClickHouse 可以以分区为单位并行处理。</p>
+<h2 id="5-2-表定义和数据目录"><a href="#5-2-表定义和数据目录" class="headerlink" title="5.2 表定义和数据目录"></a>5.2 表定义和数据目录</h2><p>ClickHouse 默认数据目录在：</p>
+<figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">/var/lib/clickhouse</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>metadata</code> 目录记录表的元数据。例如 <code>default</code> 库下的 <code>user_visits</code> 表，对应的元数据文件类似这样：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">root@7ac32faed70d:/var/lib/clickhouse/metadata/default# <span class="built_in">cat</span> user_visits.sql</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">ATTACH <span class="keyword">TABLE</span> _ UUID <span class="string">&#x27;9ef01dc2-f1e8-490d-80b7-079281a8255f&#x27;</span></span><br><span class="line">(</span><br><span class="line">    `user_id` UInt32,</span><br><span class="line">    `visit_time` DateTime,</span><br><span class="line">    `page_url` String,</span><br><span class="line">    `duration_seconds` UInt32</span><br><span class="line">)</span><br><span class="line">ENGINE <span class="operator">=</span> MergeTree</span><br><span class="line"><span class="keyword">PARTITION</span> <span class="keyword">BY</span> toDate(visit_time)</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> (user_id, visit_time)</span><br><span class="line">SETTINGS index_granularity <span class="operator">=</span> <span class="number">8192</span></span><br></pre></td></tr></table></figure>
+
+<p>真正的数据在 <code>data</code> 目录下：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">root@7ac32faed70d:/var/lib/clickhouse/data/default/user_visits# <span class="built_in">ls</span></span><br><span class="line">20260804_1_1_0  20260805_2_2_0  20260806_3_3_0  detached  format_version.txt</span><br></pre></td></tr></table></figure>
+
+<p>这里每个类似 <code>20260804_1_1_0</code> 的目录都是一个 data part。名字可以拆开看：</p>
+<figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">20260804_1_1_0</span><br><span class="line">分区ID_最小块号_最大块号_合并层级</span><br></pre></td></tr></table></figure>
+
+<p>其中：</p>
+<ul>
+<li><code>20260804</code> 表示分区 ID。</li>
+<li><code>1_1</code> 表示这个 part 覆盖的块号范围。</li>
+<li><code>0</code> 表示合并层级。</li>
+</ul>
+<h2 id="5-3-单个-part-里面有什么"><a href="#5-3-单个-part-里面有什么" class="headerlink" title="5.3 单个 part 里面有什么"></a>5.3 单个 part 里面有什么</h2><p>进入某个分区 part 目录：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">root@7ac32faed70d:/var/lib/clickhouse/data/default/user_visits/20260804_1_1_0# <span class="built_in">ls</span></span><br><span class="line">checksums.txt           data.bin                       minmax_visit_time.idx</span><br><span class="line">columns_substreams.txt  data.cmrk4                     partition.dat</span><br><span class="line">columns.txt             default_compression_codec.txt  primary.cidx</span><br><span class="line">count.txt               metadata_version.txt           serialization.json</span><br></pre></td></tr></table></figure>
+
+<p>这些文件大概可以分成几类：</p>
+<ul>
+<li><code>data.bin</code>：具体数据文件。</li>
+<li><code>data.cmrk4</code>：数据标记文件，用来定位压缩块和 granule。</li>
+<li><code>count.txt</code>：记录这个 part 的行数，简单 <code>count()</code> 可以利用这类元信息快速返回。</li>
+<li><code>default_compression_codec.txt</code>：默认压缩格式。</li>
+<li><code>columns.txt</code>：列信息。</li>
+<li><code>checksums.txt</code>：校验信息。</li>
+<li><code>primary.cidx</code>：主键稀疏索引文件。</li>
+<li><code>partition.dat</code>：分区信息。</li>
+<li><code>minmax_visit_time.idx</code>：分区键相关的 min-max 索引。</li>
+</ul>
+<p>比如 <code>columns.txt</code> 里记录了这个 part 的列定义：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">root@7ac32faed70d:/var/lib/clickhouse/data/default/user_visits/20260804_1_1_0# <span class="built_in">cat</span> columns.txt</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">columns format version: 1</span><br><span class="line">4 columns:</span><br><span class="line">`user_id` UInt32</span><br><span class="line">`visit_time` DateTime</span><br><span class="line">`page_url` String</span><br><span class="line">`duration_seconds` UInt32</span><br></pre></td></tr></table></figure>
+
+<p>从这个目录可以看出来，<code>MergeTree</code> 不是只存一份数据文件。它会同时维护数据、列信息、校验信息、分区信息、稀疏索引等内容。</p>
+<h2 id="5-4-写入和后台合并"><a href="#5-4-写入和后台合并" class="headerlink" title="5.4 写入和后台合并"></a>5.4 写入和后台合并</h2><p><code>MergeTree</code> 的写入不是直接改旧文件。每个批次写入都会生成新的 part，之后 ClickHouse 会在后台自动把同一分区内的小 part 合并成更大的 part。</p>
+<p>比如一开始目录是：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">root@7ac32faed70d:/var/lib/clickhouse/data/default/user_visits# <span class="built_in">ls</span></span><br><span class="line">20260804_1_1_0  20260805_2_2_0  detached</span><br><span class="line">20260804_4_4_0  20260806_3_3_0  format_version.txt</span><br></pre></td></tr></table></figure>
+
+<p>这里 <code>20260804</code> 分区下面有两个 part：</p>
+<ul>
+<li><code>20260804_1_1_0</code></li>
+<li><code>20260804_4_4_0</code></li>
+</ul>
+<p>强制合并后可能出现：</p>
+<figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">20260804_1_4_1</span><br></pre></td></tr></table></figure>
+
+<p>它表示：</p>
+<ul>
+<li>合并前覆盖的最小块号是 <code>1</code>。</li>
+<li>合并前覆盖的最大块号是 <code>4</code>。</li>
+<li>合并后层级变成 <code>1</code>。</li>
+</ul>
+<p>如果再插入一批 <code>20260804</code> 分区的数据，可能会出现：</p>
+<figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">20260804_5_5_0</span><br></pre></td></tr></table></figure>
+
+<p>因为上一次最大块号已经到 <code>4</code>，新的 part 块号继续往后走，所以变成 <code>5_5_0</code>。</p>
+<p>如果等不及后台自动合并，可以手动执行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">OPTIMIZE <span class="keyword">TABLE</span> user_visits <span class="keyword">PARTITION</span> <span class="string">&#x27;2026-08-04&#x27;</span> <span class="keyword">FINAL</span>;</span><br></pre></td></tr></table></figure>
+
+<p>再次强制合并后，就可能得到类似：</p>
+<figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">20260804_1_5_2</span><br></pre></td></tr></table></figure>
+
+<p>这个名字表示它已经覆盖了 <code>1</code> 到 <code>5</code> 的块号范围，合并层级也继续增加。</p>
+<h2 id="5-5-主键"><a href="#5-5-主键" class="headerlink" title="5.5 主键"></a>5.5 主键</h2><p>ClickHouse 里的主键和 MySQL、PostgreSQL 里的主键不是一回事。</p>
+<p>这里的主键主要用于索引，不提供唯一约束。也就是说，即使声明了主键，ClickHouse 也不会阻止你插入重复数据。</p>
+<p><code>MergeTree</code> 的主键索引是稀疏索引。它不会为每一行都建索引，而是每隔一段数据记录一个索引点。查询时可以先在稀疏索引上定位大概范围，再读取对应的数据块。</p>
+<p>这种思路有点像在更粗的一层结构上做二分查找：索引本身很小，放在内存里成本低，但依然能帮查询跳过大量无关数据。</p>
+<p>上面表定义里的配置：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SETTINGS index_granularity <span class="operator">=</span> <span class="number">8192</span></span><br></pre></td></tr></table></figure>
+
+<p>表示默认每隔 <code>8192</code> 行左右建立一个索引粒度。官方一般不建议随便修改这个值，除非你很清楚数据分布和查询模式，比如有大量重复值、需要更细或更粗的索引粒度。</p>
+<h2 id="5-6-ORDER-BY"><a href="#5-6-ORDER-BY" class="headerlink" title="5.6 ORDER BY"></a>5.6 ORDER BY</h2><p><code>ORDER BY</code> 决定了每个分区内数据按照哪些字段有序保存。对 <code>MergeTree</code> 来说，它是最重要的建表参数之一。</p>
+<p>如果没有单独指定 <code>PRIMARY KEY</code>，ClickHouse 默认会使用 <code>ORDER BY</code> 作为主键索引。</p>
+<p>如果同时写了 <code>PRIMARY KEY</code> 和 <code>ORDER BY</code>，主键必须是排序键的前缀。例如：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> (id, sku_id)</span><br></pre></td></tr></table></figure>
+
+<p>那么主键可以是：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">PRIMARY KEY</span> id</span><br></pre></td></tr></table></figure>
+
+<p>也可以是：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">PRIMARY KEY</span> (id, sku_id)</span><br></pre></td></tr></table></figure>
+
+<p>但不能写成：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">PRIMARY KEY</span> sku_id</span><br></pre></td></tr></table></figure>
+
+<p>因为 <code>sku_id</code> 不是排序键的前缀。</p>
+<p>设计 <code>ORDER BY</code> 时要围绕查询条件来想：哪些字段最常出现在过滤条件里，哪些字段能有效缩小扫描范围，通常就应该优先放在前面。</p>
+<h2 id="5-7-二级索引"><a href="#5-7-二级索引" class="headerlink" title="5.7 二级索引"></a>5.7 二级索引</h2><p>todo</p>
+<h2 id="5-8-数据-DDL"><a href="#5-8-数据-DDL" class="headerlink" title="5.8 数据 DDL"></a>5.8 数据 DDL</h2><p>todo</p>
 
       
     </div>
