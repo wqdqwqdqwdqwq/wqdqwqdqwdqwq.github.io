@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  
+  <title>ABCoder | 碎碎念</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="ABCoder 把代码仓库预先解析成一张语言无关的”节点图”，再通过 MCP 交给大模型查询。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ABCoder">
+<meta property="og:url" content="http://example.com/2026/08/13/abcoder/index.html">
+<meta property="og:site_name" content="碎碎念">
+<meta property="og:description" content="ABCoder 把代码仓库预先解析成一张语言无关的”节点图”，再通过 MCP 交给大模型查询。">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-08-12T16:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-13T08:46:02.114Z">
+<meta property="article:author" content="John Doe">
+<meta property="article:tag" content="ai">
+<meta property="article:tag" content="ai工具">
+<meta property="article:tag" content="go">
+<meta name="twitter:card" content="summary">
+  
+    <link rel="alternate" href="/atom.xml" title="碎碎念" type="application/atom+xml">
+  
+  
+    <link rel="shortcut icon" href="/favicon.png">
+  
+  
+  
+<link rel="stylesheet" href="/css/style.css">
+
+  
+    
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.min.css">
+
+  
+  
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fork-awesome@1.2.0/css/fork-awesome.min.css">
+
+<meta name="generator" content="Hexo 8.1.2">  <link rel="stylesheet" href="/css/custom.css">
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">碎碎念</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">思绪来得快去得也快，偶尔会在这里停留</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"><span class="fa fa-bars"></span></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+        
+          <a class="nav-icon" href="/atom.xml" title="RSS Feed"><span class="fa fa-rss"></span></a>
+        
+        <a class="nav-icon nav-search-btn" title="Search"><span class="fa fa-search"></span></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://example.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+      <div class="outer">
+        <section id="main"><article id="post-abcoder" class="h-entry article article-type-post" itemprop="blogPost" itemscope itemtype="https://schema.org/BlogPosting">
+  <div class="article-meta">
+    <a href="/2026/08/13/abcoder/" class="article-date">
+  <time class="dt-published" datetime="2026-08-12T16:00:00.000Z" itemprop="datePublished">2026-08-13</time>
+</a>
+    
+  <div class="article-category">
+    <a class="article-category-link" href="/categories/%E5%B7%A5%E5%85%B7/">工具</a>
+  </div>
+
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="p-name article-title" itemprop="headline name">
+      ABCoder
+    </h1>
+  
+
+      </header>
+    
+    <div class="e-content article-entry" itemprop="articleBody">
+      
+        <p>ABCoder 把代码仓库预先解析成一张语言无关的”节点图”，再通过 MCP 交给大模型查询。</p>
+<span id="more"></span>
+
+<h1 id="1-AI-读代码的两个瓶颈"><a href="#1-AI-读代码的两个瓶颈" class="headerlink" title="1. AI 读代码的两个瓶颈"></a>1. AI 读代码的两个瓶颈</h1><p>现在的 AI 编码工具看代码，基本靠两个动作：<code>grep</code> 找关键词，<code>read</code> 读文件。</p>
+<p>第一个瓶颈是<strong>语义缺失</strong>。<code>GetSession</code> 这个名字在十个文件里出现过，哪一个是定义？谁调用了它？改掉它的签名会崩在哪里？它实现了哪个接口？纯文本检索给不出答案。</p>
+<p>更麻烦的是这种幻觉很难被发现。模型说”这个函数只在 A 处被调用”，听起来言之凿凿，实际它只 grep 了一轮。你不去核对根本看不出来。</p>
+<p>第二个瓶颈是<strong>上下文预算</strong>。想搞清一个函数的来龙去脉，传统做法是把整个文件读进上下文。几百上千行里可能只有二十行相关。读三五个文件，窗口就见底了，模型开始遗忘前面的信息。</p>
+<p>这两个问题有个共同的根源：<strong>代码的结构信息在读取的那一刻被丢掉了。</strong> 源文件对编译器来说是有类型、有作用域、有调用图的，但按行读进大模型之后，它就变成了一堆字符串。</p>
+<p>ABCoder 的思路是把顺序倒过来。<strong>先离线用编译器&#x2F;LSP 级别的工具把整个仓库解析成一张图，每个函数、类型、全局变量都是一个有唯一 ID 的节点，节点之间的依赖和引用关系是算出来的事实。</strong> 然后把这张图通过 MCP 暴露给模型。</p>
+<p>模型不再”读文件猜”，而是”查图取事实”。</p>
+<p>这是 CloudWeGo的项目，几个子命令：</p>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>parse</code></td>
+<td>代码 → UniAST JSON</td>
+</tr>
+<tr>
+<td><code>write</code></td>
+<td>UniAST → 代码</td>
+</tr>
+<tr>
+<td><code>mcp</code></td>
+<td>起 MCP server，把 AST 目录暴露给 AI</td>
+</tr>
+<tr>
+<td><code>init-spec</code></td>
+<td>一键配置 Claude Code 集成</td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td>命令行 AI agent（WIP，只支持分析）</td>
+</tr>
+</tbody></table>
+<h1 id="2-UniAST：给-AI-看的代码表示"><a href="#2-UniAST：给-AI-看的代码表示" class="headerlink" title="2. UniAST：给 AI 看的代码表示"></a>2. UniAST：给 AI 看的代码表示</h1><p>UniAST 是 ABCoder 的核心资产，全称 Universal AST。它不是某个语言的语法树，而是<strong>一层语言无关的抽象</strong>：Go 的 struct、Rust 的 enum、TypeScript 的 interface，最后都落到同一套结构里。</p>
+<h2 id="2-1-内容和关系分开存"><a href="#2-1-内容和关系分开存" class="headerlink" title="2.1 内容和关系分开存"></a>2.1 内容和关系分开存</h2><p>一个 UniAST JSON 顶层只有两个要紧的字段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">Modules  →  内容层：代码正文、签名、位置、参数返回值</span><br><span class="line">Graph    →  关系层：节点之间的边</span><br></pre></td></tr></table></figure>
+
+
+<h2 id="2-2-节点-ID-的三段式"><a href="#2-2-节点-ID-的三段式" class="headerlink" title="2.2 节点 ID 的三段式"></a>2.2 节点 ID 的三段式</h2><p>关系层的 key 长这样：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">github.com/cloudwego/localsession?github.com/cloudwego/localsession#SessionManager.GetSession</span><br><span class="line">└──────────── 模块 ────────────┘ └────────── 包 ──────────┘ └──── 名字 ────┘</span><br></pre></td></tr></table></figure>
+
+<p><code>模块?包#名字</code>，三段拼起来全局唯一。</p>
+<p>这个设计解决了 grep 的根本问题。同一个仓库里 <code>v1</code> 和 <code>v2</code> 两个包各有一个 <code>Client</code>，在文本世界里它们无法区分，在这里是两个不同的 ID。方法名还带上了 receiver。</p>
+<p><strong>模型拿到的引用不是”某个可能叫这名字的东西”，而是”就是这个节点”。</strong></p>
+<h2 id="2-3-一个节点带什么信息"><a href="#2-3-一个节点带什么信息" class="headerlink" title="2.3 一个节点带什么信息"></a>2.3 一个节点带什么信息</h2><p>拿项目自带的测试数据（<code>localsession</code> 这个 Go 库，解析出来 680 KB）举例，<code>SessionManager.GetSession</code> 这个节点：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;Name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;SessionManager.GetSession&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;File&quot;</span><span class="punctuation">:</span> <span class="string">&quot;manager.go&quot;</span><span class="punctuation">,</span>  <span class="attr">&quot;Line&quot;</span><span class="punctuation">:</span> <span class="number">115</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;StartOffset&quot;</span><span class="punctuation">:</span> <span class="number">2768</span><span class="punctuation">,</span>   <span class="attr">&quot;EndOffset&quot;</span><span class="punctuation">:</span> <span class="number">3288</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;Signature&quot;</span><span class="punctuation">:</span> <span class="string">&quot;func (self *SessionManager) GetSession(id SessionID) (Session, bool)&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;Content&quot;</span><span class="punctuation">:</span> <span class="string">&quot;// Get gets specific session\n// or get inherited session if...\nfunc ...&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;Exported&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span>  <span class="attr">&quot;IsMethod&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;Receiver&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;IsPointer&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span> <span class="attr">&quot;Type&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;Name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;SessionManager&quot;</span> <span class="punctuation">&#125;</span> <span class="punctuation">&#125;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;Params&quot;</span><span class="punctuation">:</span>  <span class="punctuation">[</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;Name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;SessionID&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;Line&quot;</span><span class="punctuation">:</span> <span class="number">115</span> <span class="punctuation">&#125;</span> <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;Results&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;Name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;Session&quot;</span><span class="punctuation">,</span>   <span class="attr">&quot;Line&quot;</span><span class="punctuation">:</span> <span class="number">115</span> <span class="punctuation">&#125;</span> <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;FunctionCalls&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;Name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;getSessionID&quot;</span><span class="punctuation">,</span> <span class="attr">&quot;Line&quot;</span><span class="punctuation">:</span> <span class="number">125</span> <span class="punctuation">&#125;</span> <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;MethodCalls&quot;</span><span class="punctuation">:</span>   <span class="punctuation">[</span> <span class="punctuation">&#123;</span> <span class="attr">&quot;Name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;shard.Load&quot;</span><span class="punctuation">,</span>   <span class="attr">&quot;Line&quot;</span><span class="punctuation">:</span> <span class="number">117</span> <span class="punctuation">&#125;</span> <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>位置精确到字节偏移。</strong> 除了行号还有 <code>StartOffset</code>&#x2F;<code>EndOffset</code>，能精准切出代码片段，也是反向写回代码的基础。</p>
+<p><strong>签名单独存一份。</strong> 模型很多时候只需要知道”这个函数怎么调用”，不需要函数体。签名单列一个字段，就能在不加载正文的前提下回答这类问题。</p>
+<p><strong>调用分了函数和方法两类。</strong> 因为方法调用需要 receiver 类型才能定位到具体实现。</p>
+<p>而它在关系层的条目：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;Type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;FUNC&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;Dependencies&quot;</span><span class="punctuation">:</span> <span class="punctuation">[</span> SessionID<span class="punctuation">,</span> Session<span class="punctuation">,</span> getSessionID<span class="punctuation">,</span> shard.Load<span class="punctuation">,</span> SessionManager <span class="punctuation">]</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;References&quot;</span><span class="punctuation">:</span>   <span class="punctuation">[</span> CurSession <span class="punctuation">]</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>References</code> 是这里最值钱的东西。<strong>“谁调用了我”这个问题，传统工具要全仓 grep 再人工过滤，还不保证全，这里是现成的答案。</strong> 重构、评估改动影响面、判断能不能删，全靠这条反向边。</p>
+<p>关系一共几种：依赖、实现、继承。</p>
+<h1 id="3-语义从哪来"><a href="#3-语义从哪来" class="headerlink" title="3. 语义从哪来"></a>3. 语义从哪来</h1><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">abcoder parse go ~/code/localsession -o ~/.asts/localsession.json</span><br></pre></td></tr></table></figure>
+
+<p>解析这一步各语言走各自最权威的工具：</p>
+<ul>
+<li><strong>Go</strong> 走原生 <code>go/packages</code></li>
+<li><strong>Rust &#x2F; C++ &#x2F; Python &#x2F; Java</strong> 走对应的 LSP</li>
+<li><strong>TS &#x2F; JS</strong> 走独立的 npm 包，底层是 TypeScript Compiler API</li>
+</ul>
+<p>这个选择是整套东西可信度的来源。<strong>关系不是靠正则猜出来的，是编译器&#x2F;语言服务算出来的。</strong> 代价是 parse 很重。</p>
+<p>反方向是 <code>abcoder write</code>，把 UniAST 写回代码。目前只有 Go 完整支持，其余语言还在做。这个方向的意义是让 AI 可以”改图”而不是”改文本”，不过现阶段还不成熟。</p>
+<p>语言支持的现状：</p>
+<table>
+<thead>
+<tr>
+<th>语言</th>
+<th>Parser</th>
+<th>Writer</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Go</td>
+<td>支持</td>
+<td>支持</td>
+</tr>
+<tr>
+<td>Rust</td>
+<td>支持</td>
+<td>开发中</td>
+</tr>
+<tr>
+<td>C&#x2F;C++</td>
+<td>支持</td>
+<td>开发中</td>
+</tr>
+<tr>
+<td>Python</td>
+<td>支持</td>
+<td>开发中</td>
+</tr>
+<tr>
+<td>JS&#x2F;TS</td>
+<td>支持</td>
+<td>开发中</td>
+</tr>
+<tr>
+<td>Java</td>
+<td>支持</td>
+<td>开发中</td>
+</tr>
+</tbody></table>
+<h1 id="4-四层下钻：渐进式披露"><a href="#4-四层下钻：渐进式披露" class="headerlink" title="4. 四层下钻：渐进式披露"></a>4. 四层下钻：渐进式披露</h1><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">abcoder mcp ~/.asts/</span><br></pre></td></tr></table></figure>
+
+<p>这个命令把目录下所有 AST 全载进内存，对外暴露五个 MCP 工具：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">list_repos → get_repo_structure → get_package_structure → get_file_structure → get_ast_node</span><br><span class="line">     │              │                      │                       │                  │</span><br><span class="line">  仓库列表       模块/包/文件           文件+节点名            +签名+行号        正文+全部关系</span><br></pre></td></tr></table></figure>
+
+<p>这五个工具的描述文字很有意思，值得单独说。</p>
+<h2 id="4-1-工具描述就是提示词"><a href="#4-1-工具描述就是提示词" class="headerlink" title="4.1 工具描述就是提示词"></a>4.1 工具描述就是提示词</h2><p>模型看不到 ABCoder 的源码。对每个 MCP 工具，它能看到的只有三样：<strong>工具名、一段描述文字、参数的 JSON schema</strong>。这些会被拼进系统提示词发过去。</p>
+<p>所以工具描述不是给人看的文档，<strong>它就是提示词</strong>。这块空间是你唯一能影响模型如何使用工具的地方。</p>
+<p>大部分 MCP server 就老老实实写一句”这个工具做什么”。ABCoder 把这块空间当指令通道用了：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">list_repos            [DISCOVERY] level1/4: List all repositories. No parameters</span><br><span class="line">                      required. Always the first step in any analysis workflow.</span><br><span class="line"></span><br><span class="line">get_repo_structure    [STRUCTURE] level2/4: Get repository structure.</span><br><span class="line">                      Input: repo_name from list_repos output.</span><br><span class="line"></span><br><span class="line">get_package_structure [STRUCTURE] level3/4: Get package structure with node_ids.</span><br><span class="line">                      Input: repo_name, mod_path, pkg_path from get_repo_structure output.</span><br><span class="line"></span><br><span class="line">get_file_structure    [STRUCTURE] level3/4: Get file structure with node list.</span><br><span class="line">                      Input: repo_name, file_path from get_repo_structure output.</span><br><span class="line"></span><br><span class="line">get_ast_node          [ANALYSIS]  level4/4: Get detailed AST node info.</span><br><span class="line">                      Input: repo_name, node_ids from previous calls.</span><br></pre></td></tr></table></figure>
+
+<p>除了”这个工具做什么”，这里还塞进了三种信息：</p>
+<p><strong>阶段编号。</strong> <code>level1/4</code> 到 <code>level4/4</code>，告诉模型总共几步、现在在第几步。顺带一个细节：<code>get_package_structure</code> 和 <code>get_file_structure</code> 都标 <code>level3/4</code>，它们是同一层的两个<strong>并列选择</strong>，不是先后关系——按包看还是按文件看，挑一个。</p>
+<p><strong>阶段名。</strong> <code>[DISCOVERY]</code> &#x2F; <code>[STRUCTURE]</code> &#x2F; <code>[ANALYSIS]</code>，把五个工具归成三类，模型知道自己当前在”找”、”看结构”还是”深挖”。</p>
+<p><strong>参数来源。</strong> 每个入参标明该从哪个工具的输出里取。这层在参数 schema 里还重复了一遍，比如 <code>repo_name</code> 的描述是 <code>the name of the repository (output of list_repos tool)</code>。</p>
+<h2 id="4-2-不这么写会怎样"><a href="#4-2-不这么写会怎样" class="headerlink" title="4.2 不这么写会怎样"></a>4.2 不这么写会怎样</h2><p>模型会直接跳到最后一步。</p>
+<p><code>get_ast_node</code> 是唯一能拿到代码正文的工具，看起来最有用。模型的默认反应就是直奔它，然后自己编一个节点 ID。但节点 ID 需要 <code>模块 + 包 + 名字</code> 三段，前两段它不可能猜对——结果要么报错，要么索性放弃这套工具，退回 <code>grep</code>。</p>
+<p>写死顺序之后，正确路径成了唯一显而易见的路径。<strong>每一步的输出恰好是下一步的输入</strong>，模型顺着链条走就不会走岔。</p>
+<p>这就是所谓<strong>把调用顺序写进提示词</strong>：流程不靠模型的推理能力保证，靠工具元数据里的硬编码保证。这个思路在后面第 6 节还会再出现两次。</p>
+<h2 id="4-3-走一遍"><a href="#4-3-走一遍" class="headerlink" title="4.3 走一遍"></a>4.3 走一遍</h2><p>假设需求是”给 <code>SessionManager</code> 加一个统计当前 session 数量的方法”。</p>
+<p>传统 AI 的做法：<code>grep SessionManager</code> 命中十几处 → 挑几个文件整体读进来 → 猜哪里该改 → 不知道有谁依赖 → 改完可能漏。</p>
+<p>走 ABCoder：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">① list_repos                    → [&quot;localsession&quot;]</span><br><span class="line"></span><br><span class="line">② get_repo_structure            → 模块 + 包列表 + 每个包的文件</span><br><span class="line"></span><br><span class="line">③ get_package_structure         → manager.go: [SessionManager,</span><br><span class="line">                                    SessionManager.GetSession,</span><br><span class="line">                                    SessionManager.BindSession, ...]</span><br><span class="line"></span><br><span class="line">④ get_file_structure            → 加上 imports，以及每个节点的类型/签名/行号</span><br><span class="line"></span><br><span class="line">⑤ get_ast_node [SessionManager,  → 正文 + 依赖 + 引用 + 实现 + 继承 + 同组</span><br><span class="line">                GetSession]</span><br></pre></td></tr></table></figure>
+
+<p>关键在于<strong>每一层只给下一步决策所需的最少信息</strong>：</p>
+<p>第三层只给节点名，不给代码正文——列目录的阶段不需要看代码。</p>
+<p>第四层才补上签名和行号。这一层能一眼看清整个文件的 API 面貌，仍然不含函数体。对”照着现有风格加个方法”这种需求，看到这里往往就够了。</p>
+<p>第五层才给正文。而且节点 ID 是数组，一次请求可以捞多个节点，整条调用链一轮对话拉齐。</p>
+<p>这套渐进式披露直接对应第一节说的上下文预算问题。传统做法读三个文件可能烧掉几千 token 且大部分无关；这里前四层加起来可能几百 token，精确锁定目标之后才付费加载正文。</p>
+<h1 id="5-自动保鲜"><a href="#5-自动保鲜" class="headerlink" title="5. 自动保鲜"></a>5. 自动保鲜</h1><p>AST 是代码的快照。它的保鲜是两层独立机制拼起来的，很多人会看混：</p>
+<ul>
+<li><strong>内存层</strong>：让 MCP 进程里的对象是新的，靠文件监听</li>
+<li><strong>磁盘层</strong>：让 AST 文件本身是新的，靠 Claude Code 的 hook 触发重新解析</li>
+</ul>
+<p>两层之间的唯一接口就是那个 JSON 文件。一层写文件，一层监听文件，互不知道对方存在。</p>
+<h2 id="5-1-内存层"><a href="#5-1-内存层" class="headerlink" title="5.1 内存层"></a>5.1 内存层</h2><p>MCP server 启动时全量载入，然后挂一个 <code>fsnotify</code> 监听。JSON 文件被写入或创建，就重新加载、原子替换掉内存里的旧对象。</p>
+<h2 id="5-2-磁盘层：三个信号"><a href="#5-2-磁盘层：三个信号" class="headerlink" title="5.2 磁盘层：三个信号"></a>5.2 磁盘层：三个信号</h2><p><code>abcoder init-spec</code> 会把 <code>.claude/</code> 配置拷到项目根，并配好 MCP server。之后保鲜决策只依赖三个信号：</p>
+<table>
+<thead>
+<tr>
+<th>信号</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>_need_update</code> 标记文件（<code>0</code>&#x2F;<code>1</code>）</td>
+<td>AI 刚改过代码</td>
+</tr>
+<tr>
+<td>AST 文件的修改时间</td>
+<td>这份 AST 有多旧</td>
+</tr>
+<tr>
+<td>文件系统事件</td>
+<td>JSON 变了，该重载内存</td>
+</tr>
+</tbody></table>
+<p><strong>写标记</strong>：任何 <code>Write</code>&#x2F;<code>Edit</code> 之后触发一个 hook，往标记文件写 <code>1</code>。</p>
+<p><strong>读标记 + 决策</strong>：任何 <code>mcp__abcoder__*</code> 工具调用<strong>之前</strong>触发 <code>parse.sh</code>。</p>
+<p><strong>hook 挂在”查询前”，不是”编辑后”。</strong></p>
+<p>如果挂在编辑后，模型连续改五个文件就要解析五次，每次都是全量过编译器。挂在查询前，改五个文件只在下次真正要读 AST 时解析一次。<strong>懒惰求值天然合并了连续编辑。</strong></p>
+<p>决策逻辑：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 读标记，有变更就强制重解析</span></span><br><span class="line"><span class="keyword">if</span> [[ <span class="string">&quot;<span class="subst">$(cat <span class="string">&quot;<span class="variable">$need_update_file</span>&quot;</span>)</span>&quot;</span> == <span class="string">&quot;1&quot;</span> ]]; <span class="keyword">then</span></span><br><span class="line">  force_update=1</span><br><span class="line"><span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 没有变更标记、且 AST 不到 180 秒 → 缓存命中，直接跳过</span></span><br><span class="line"><span class="keyword">if</span> [[ <span class="variable">$force_update</span> -eq 0 &amp;&amp; -f <span class="string">&quot;<span class="variable">$ast_output_file</span>&quot;</span> ]]; <span class="keyword">then</span></span><br><span class="line">  <span class="keyword">if</span> [[ <span class="variable">$file_age_seconds</span> -lt 180 ]]; <span class="keyword">then</span></span><br><span class="line">    <span class="built_in">exit</span> 0</span><br><span class="line">  <span class="keyword">fi</span></span><br><span class="line"><span class="keyword">fi</span></span><br><span class="line"></span><br><span class="line">abcoder parse <span class="string">&quot;<span class="variable">$project_lang</span>&quot;</span> . -o <span class="string">&quot;<span class="variable">$ast_output_file</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>两条触发路径：</p>
+<ul>
+<li><strong>强制路径</strong>：标记为 1，无视时间戳一定重解析。覆盖”AI 刚改过代码”</li>
+<li><strong>兜底路径</strong>：标记为 0 但 AST 超过 180 秒，也重解析。兜住外部变更——你自己在编辑器里改的、<code>git pull</code> 拉下来的，这些 hook 感知不到</li>
+</ul>
+<h2 id="5-3-完整时序"><a href="#5-3-完整时序" class="headerlink" title="5.3 完整时序"></a>5.3 完整时序</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">你: &quot;给 SessionManager 加个统计方法&quot;</span><br><span class="line">  │</span><br><span class="line">  ├─ 调 get_repo_structure</span><br><span class="line">  │    → hook: AST 不存在 → 解析 → 写 JSON</span><br><span class="line">  │                            └→ 文件事件 → 内存层重新加载</span><br><span class="line">  │    → 返回结构（读到的是刚加载的新对象）</span><br><span class="line">  │</span><br><span class="line">  ├─ 调 get_ast_node（30 秒后）</span><br><span class="line">  │    → hook: 无变更标记、AST 才 30 秒 → 缓存命中，跳过</span><br><span class="line">  │</span><br><span class="line">  ├─ Edit manager.go</span><br><span class="line">  │    → hook: 标记 = 1</span><br><span class="line">  │</span><br><span class="line">  └─ 调 get_ast_node 验证改动（10 秒后）</span><br><span class="line">       → hook: 标记 = 1 → 强制重解析（无视 30 秒缓存）</span><br><span class="line">       → 模型看到的是改完之后的 AST</span><br></pre></td></tr></table></figure>
+
+
+<h1 id="6-解析失败就拦住-AI"><a href="#6-解析失败就拦住-AI" class="headerlink" title="6. 解析失败就拦住 AI"></a>6. 解析失败就拦住 AI</h1><p>解析失败<strong>不是静默跳过</strong>，而是直接拦掉这次工具调用。实现上不靠退出码，而是往 stdout 打一段 JSON：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;decision&quot;</span><span class="punctuation">:</span> <span class="string">&quot;block&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;reason&quot;</span><span class="punctuation">:</span> <span class="string">&quot;abcoder parse 失败（语言：go，退出码: 1）。错误信息：\n&lt;真实的编译错误&gt;\n\n可能的原因：\n1. 项目配置文件有问题（Go: go.mod；TS: tsconfig.json）\n2. 缺少依赖包\n3. 代码语法错误\n\n建议：\n- Go 项目：运行 go mod tidy 和 go build 检查\n- TS 项目：运行 npm install 和 tsc --noEmit 检查&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+
+<p><code>reason</code> 模型拿到的不是”失败了”，而是一份能立刻行动的诊断报告。它会转头去修构建，而不是绕过这个工具改用 <code>grep</code>。</p>
+<p>设计意图很明确：<strong>代码编译不过的时候，宁可拦住 AI，也不让它拿着旧 AST 继续干活。</strong></p>
+<h2 id="6-1-三层行为约束"><a href="#6-1-三层行为约束" class="headerlink" title="6.1 三层行为约束"></a>6.1 三层行为约束</h2><p>还剩一个问题：<strong>模型会不会真的去用这些工具？</strong></p>
+<p>三层的时机分布：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">会话开始 ────────────────────────────────────────────→ 会话结束</span><br><span class="line">    │</span><br><span class="line">    │  CLAUDE.md 载入（第三层：长期方向）</span><br><span class="line">    │  &quot;代码分析优先级：mcp__abcoder &gt; Read/Search&quot;</span><br><span class="line">    │  全程有效，但随上下文变长逐渐被稀释</span><br><span class="line">    │</span><br><span class="line">    ├─ 模型要挑工具了 ← 工具描述（第一层：决策参考）</span><br><span class="line">    │   每次选择都会重新看到 level1/4、参数来源</span><br><span class="line">    │</span><br><span class="line">    ├─ 调了 get_repo_structure，拿到目录结构</span><br><span class="line">    │   ↓ PostToolUse hook 立刻插入（第二层：即时干预）</span><br><span class="line">    │   &quot;&lt;system-reminder&gt; 定位到目标节点后，MUST 继续调 get_ast_node...&quot;</span><br><span class="line">    │   ↑ 就在这个动作刚结束、下一步还没决定的瞬间</span><br><span class="line">    │</span><br><span class="line">    └─ 继续往第四层走，而不是觉得&quot;结构看够了&quot;就开始写</span><br></pre></td></tr></table></figure>
+
+<p><strong>第三层，<code>CLAUDE.md</code> 里的硬规则</strong></p>
+<p>它在会话开始时载入，管全程。短板是离得越来越远——聊到第 50 轮，开头这段规则在注意力里的权重已经很低了。</p>
+<p><strong>第一层，工具描述里的层级标注</strong>，管每次选择。</p>
+<p>这里要强调一遍：<code>level1/4</code> 是注册工具时作为 description 传进去。</p>
+<p><strong>第二层，hook 注入的提醒</strong></p>
+<p>ABCoder 一共配了四个 hook：</p>
+<table>
+<thead>
+<tr>
+<th>脚本</th>
+<th>事件</th>
+<th>什么时候跑</th>
+<th>干什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>parse.sh</code></td>
+<td><strong>Pre</strong>ToolUse</td>
+<td>任何 <code>mcp__abcoder__*</code> <strong>之前</strong></td>
+<td>按需重新解析 AST，失败则拦住</td>
+</tr>
+<tr>
+<td><code>need_update.sh</code></td>
+<td>PostToolUse</td>
+<td><code>Write</code>&#x2F;<code>Edit</code> <strong>之后</strong></td>
+<td>往标记文件写 <code>1</code></td>
+</tr>
+<tr>
+<td><code>prompt.sh</code></td>
+<td>PostToolUse</td>
+<td><code>list_repos</code> <strong>之后</strong></td>
+<td>注入整份 workflow 文档</td>
+</tr>
+<tr>
+<td><code>reminder.sh</code></td>
+<td>PostToolUse</td>
+<td><code>get_*_structure</code> <strong>之后</strong></td>
+<td>注入 <code>&lt;system-reminder&gt;</code> 提醒</td>
+</tr>
+</tbody></table>
+<p>三个 PostToolUse hook 干的是三件不同的事。<code>need_update.sh</code> 根本不给模型注入东西，纯粹写个标记文件给 <code>parse.sh</code> 读，是保鲜机制的一半。<code>prompt.sh</code> 挂在 <code>list_repos</code> 之后——四层下钻刚开始的那一刻——把整份 SOP 文档摊在模型面前。<code>reminder.sh</code> 挂在三个结构类工具之后，注入的是这段：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">&lt;system-reminder&gt;... after locating the target node, you MUST use the get_ast_node</span><br><span class="line">tool. It is required to recursively call get_ast_node to obtain the complete AST</span><br><span class="line">node information, including type, code, position, and related relationships ...&lt;/system-reminder&gt;</span><br></pre></td></tr></table></figure>
+
+<p>于是模型在调 <code>get_repo_structure</code> 那一轮，实际收到的上下文是三个来源拼起来的：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">工具列表（每轮请求都带）</span><br><span class="line">  list_repos:   &quot;[DISCOVERY] level1/4: ...&quot;     ← abcoder 二进制里的常量</span><br><span class="line">  get_ast_node: &quot;[ANALYSIS]  level4/4: ...&quot;     ← 同上</span><br><span class="line"></span><br><span class="line">── 本轮工具结果 ──</span><br><span class="line">  &#123; &quot;modules&quot;: [...] &#125;                          ← MCP server 返回的真实数据</span><br><span class="line">  &lt;system-reminder&gt;...MUST use get_ast_node...  ← reminder.sh 注入</span><br></pre></td></tr></table></figure>
+
+<p>层级标注在最上面的工具列表里，hook 注入的内容在下面的工具结果旁边，两者隔得很远，是两条独立通道。</p>
+<h2 id="6-2-subagent-是个漏洞"><a href="#6-2-subagent-是个漏洞" class="headerlink" title="6.2 subagent 是个漏洞"></a>6.2 subagent 是个漏洞</h2><p>Claude Code 可以派 subagent 干活，而 subagent 是<strong>全新的上下文</strong>——主对话里积累的一切它都看不到，包括你反复强调的那些约束。</p>
+<p>于是会出现这种情况：主对话老老实实走完了四层下钻，然后派一个 subagent 去分析另一个模块，subagent 一无所知，直接开始 <code>grep</code>。整套精确性在这里漏掉了。</p>
+<p>ABCoder 的规则是：派 subagent 做代码分析时，<strong>要在给它的任务描述里明确写上”用 <code>get_ast_node</code>“</strong>，因为那段任务描述是 subagent 唯一能看到的上下文。</p>
+<p>这其实是第二层思路的延伸——<strong>约束必须出现在它能被看到的地方</strong>，写在别处等于没写。</p>
+<h2 id="6-3-三个斜杠命令"><a href="#6-3-三个斜杠命令" class="headerlink" title="6.3 三个斜杠命令"></a>6.3 三个斜杠命令</h2><p>配套还有一套工作流，不是必需但是官方主推的：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">/abcoder:schedule &lt;需求&gt;   → 用 AST 分析代码库，产出技术方案</span><br><span class="line">/abcoder:task &lt;名字&gt;       → 生成 CODE_TASK 文档，写好精确的节点 ID</span><br><span class="line">/abcoder:recheck &lt;任务&gt;    → 复查可行性，重点验证外部依赖</span><br><span class="line">然后才开始写代码</span><br></pre></td></tr></table></figure>
+
+<p>核心想法是<strong>把”要改哪些节点”在方案阶段就用节点 ID 钉死</strong>。写代码时子 agent 直接按 ID 取上下文，不用重新摸索。这也是在对抗上下文预算——方案阶段的探索成本只付一次。</p>
+<h1 id="7-小结"><a href="#7-小结" class="headerlink" title="7. 小结"></a>7. 小结</h1><p>ABCoder 的核心命题是：<strong>把代码理解从文本检索换成图查询。</strong></p>
+<p><strong>UniAST 的双层结构。</strong> 内容层按层级嵌套服务浏览，关系层扁平哈希服务查询，三段式 ID 保证全局唯一。反向引用边把”谁调用了我”从一次不保证完整的全仓搜索，变成一次确定的查表。</p>
+<p><strong>四层下钻的渐进式披露。</strong> 每层只给下一步决策所需的最少信息，代码正文留到最后一层才加载。工具描述里写死层级标注，用提示词约束调用顺序。这是在正面解决上下文预算问题。</p>
+<p><strong>保鲜的两层解耦。</strong> 文件监听管内存新鲜度，hook 管磁盘新鲜度，中间只靠一个 JSON 文件通信。hook 挂在查询前而非编辑后，用懒惰求值天然合并连续编辑；解析失败直接拦住 AI 并回灌可执行的修复建议，宁可硬失败也不悄悄降级。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://example.com/2026/08/13/abcoder/" data-id="cuidficXQb964_vmnlKOlug7G" data-title="ABCoder" class="article-share-link"><span class="fa fa-share">Share</span></a>
+      
+      
+      
+  <ul class="article-tag-list" itemprop="keywords"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/ai/" rel="tag">ai</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/ai%E5%B7%A5%E5%85%B7/" rel="tag">ai工具</a></li><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/go/" rel="tag">go</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2026/07/28/clickhouse/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">ClickHouse</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Categories</h3>
+    <div class="widget">
+      <ul class="category-list"><li class="category-list-item"><a class="category-list-link" href="/categories/%E5%B7%A5%E5%85%B7/">工具</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%95%B0%E6%8D%AE%E5%BA%93/">数据库</a></li><li class="category-list-item"><a class="category-list-link" href="/categories/%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90/">源码分析</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tags</h3>
+    <div class="widget">
+      <ul class="tag-list" itemprop="keywords"><li class="tag-list-item"><a class="tag-list-link" href="/tags/ai/" rel="tag">ai</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/ai%E5%B7%A5%E5%85%B7/" rel="tag">ai工具</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/clickhouse/" rel="tag">clickhouse</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/database/" rel="tag">database</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/go/" rel="tag">go</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kratos/" rel="tag">kratos</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/olap/" rel="tag">olap</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" rel="tag">分布式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Tag Cloud</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/ai/" style="font-size: 10px;">ai</a> <a href="/tags/ai%E5%B7%A5%E5%85%B7/" style="font-size: 10px;">ai工具</a> <a href="/tags/clickhouse/" style="font-size: 10px;">clickhouse</a> <a href="/tags/database/" style="font-size: 10px;">database</a> <a href="/tags/go/" style="font-size: 20px;">go</a> <a href="/tags/kratos/" style="font-size: 10px;">kratos</a> <a href="/tags/olap/" style="font-size: 10px;">olap</a> <a href="/tags/%E5%88%86%E5%B8%83%E5%BC%8F/" style="font-size: 10px;">分布式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Archives</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2026/08/">August 2026</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2026/07/">July 2026</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2026/08/13/abcoder/">ABCoder</a>
+          </li>
+        
+          <li>
+            <a href="/2026/07/28/clickhouse/">ClickHouse</a>
+          </li>
+        
+          <li>
+            <a href="/2026/07/27/kratos/">Kratos</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      
+      &copy; 2026 John Doe<br>
+      Powered by <a href="https://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+
+<script src="/js/jquery-3.6.4.min.js"></script>
+
+
+
+  
+<script src="/fancybox/jquery.fancybox.min.js"></script>
+
+
+
+
+<script src="/js/script.js"></script>
+
+
+
+
+
+  </div>
+</body>
+</html>
