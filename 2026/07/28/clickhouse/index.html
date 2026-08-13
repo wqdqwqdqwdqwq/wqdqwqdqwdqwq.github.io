@@ -14,7 +14,7 @@
 <meta property="og:description" content="ClickHouse 是一个面向分析场景的列式数据库，常见于日志分析、指标分析、用户行为分析和实时数仓。">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-07-27T16:00:00.000Z">
-<meta property="article:modified_time" content="2026-08-04T11:56:51.607Z">
+<meta property="article:modified_time" content="2026-08-05T07:56:07.998Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="clickhouse">
 <meta property="article:tag" content="database">
@@ -248,11 +248,10 @@
 
 <p>需要注意：这种方式是 ClickHouse 读取 MySQL 外部表，不是把数据真正同步进 ClickHouse。它适合查询外部数据、做临时联邦查询，或者接入少量维表。如果要持续导入大量数据，通常会用 Kafka 引擎、物化视图，或者专门的数据同步工具。</p>
 <h1 id="5-MergeTree-家族"><a href="#5-MergeTree-家族" class="headerlink" title="5. MergeTree 家族"></a>5. MergeTree 家族</h1><p><code>MergeTree</code> 是 ClickHouse 里最重要的一类表引擎。大多数生产表最终都会落到 <code>MergeTree</code> 或它的变体上。</p>
-<p>它解决的核心问题是：如何把大量数据按列存储起来，同时还能利用分区、排序键、稀疏索引和后台合并，让分析查询尽量少扫数据。</p>
 <h2 id="5-1-分区"><a href="#5-1-分区" class="headerlink" title="5.1 分区"></a>5.1 分区</h2><p>分区的主要作用是降低扫描范围，优化查询速度。</p>
 <p>如果建表时不写 <code>PARTITION BY</code>，表就只有一个默认分区。数据量小时这没什么问题，但数据量大了以后，查询、删除、归档都会变得不方便。</p>
 <p>一个简单例子：</p>
-<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">ENGINE <span class="operator">=</span> MergeTree</span><br><span class="line"><span class="keyword">PARTITION</span> <span class="keyword">BY</span> toDate(visit_time)</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> (user_id, visit_time)</span><br><span class="line">SETTINGS index_granularity <span class="operator">=</span> <span class="number">8192</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">ENGINE <span class="operator">=</span> MergeTree</span><br><span class="line"><span class="keyword">PARTITION</span> <span class="keyword">BY</span> toDate(visit_time)</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> (user_id, visit_time)</span><br></pre></td></tr></table></figure>
 
 <p>这里按访问日期分区。查询带上日期条件时，ClickHouse 可以先排除不相关分区，只扫描命中的那部分数据。</p>
 <p>分区还有一个额外好处：面对跨分区查询时，ClickHouse 可以以分区为单位并行处理。</p>
@@ -306,7 +305,7 @@
 <li><code>20260804_1_1_0</code></li>
 <li><code>20260804_4_4_0</code></li>
 </ul>
-<p>强制合并后可能出现：</p>
+<p>强制合并后出现：</p>
 <figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">20260804_1_4_1</span><br></pre></td></tr></table></figure>
 
 <p>它表示：</p>
@@ -315,7 +314,7 @@
 <li>合并前覆盖的最大块号是 <code>4</code>。</li>
 <li>合并后层级变成 <code>1</code>。</li>
 </ul>
-<p>如果再插入一批 <code>20260804</code> 分区的数据，可能会出现：</p>
+<p>如果再插入一批 <code>20260804</code> 分区的数据，会出现：</p>
 <figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">20260804_5_5_0</span><br></pre></td></tr></table></figure>
 
 <p>因为上一次最大块号已经到 <code>4</code>，新的 part 块号继续往后走，所以变成 <code>5_5_0</code>。</p>
@@ -326,16 +325,14 @@
 <figure class="highlight txt"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">20260804_1_5_2</span><br></pre></td></tr></table></figure>
 
 <p>这个名字表示它已经覆盖了 <code>1</code> 到 <code>5</code> 的块号范围，合并层级也继续增加。</p>
-<h2 id="5-5-主键"><a href="#5-5-主键" class="headerlink" title="5.5 主键"></a>5.5 主键</h2><p>ClickHouse 里的主键和 MySQL、PostgreSQL 里的主键不是一回事。</p>
-<p>这里的主键主要用于索引，不提供唯一约束。也就是说，即使声明了主键，ClickHouse 也不会阻止你插入重复数据。</p>
+<h2 id="5-5-主键"><a href="#5-5-主键" class="headerlink" title="5.5 主键"></a>5.5 主键</h2><p>这里的主键主要用于索引，不提供唯一约束。也就是说，即使声明了主键，ClickHouse 也不会阻止你插入重复数据。</p>
 <p><code>MergeTree</code> 的主键索引是稀疏索引。它不会为每一行都建索引，而是每隔一段数据记录一个索引点。查询时可以先在稀疏索引上定位大概范围，再读取对应的数据块。</p>
 <p>这种思路有点像在更粗的一层结构上做二分查找：索引本身很小，放在内存里成本低，但依然能帮查询跳过大量无关数据。</p>
 <p>上面表定义里的配置：</p>
 <figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SETTINGS index_granularity <span class="operator">=</span> <span class="number">8192</span></span><br></pre></td></tr></table></figure>
 
-<p>表示默认每隔 <code>8192</code> 行左右建立一个索引粒度。官方一般不建议随便修改这个值，除非你很清楚数据分布和查询模式，比如有大量重复值、需要更细或更粗的索引粒度。</p>
+<p>表示默认每隔 <code>8192</code> 行左右建立一个索引粒度。官方一般不建议随便修改这个值，除非你很清楚数据分布，比如有大量重复值。</p>
 <h2 id="5-6-ORDER-BY"><a href="#5-6-ORDER-BY" class="headerlink" title="5.6 ORDER BY"></a>5.6 ORDER BY</h2><p><code>ORDER BY</code> 决定了每个分区内数据按照哪些字段有序保存。对 <code>MergeTree</code> 来说，它是最重要的建表参数之一。</p>
-<p>如果没有单独指定 <code>PRIMARY KEY</code>，ClickHouse 默认会使用 <code>ORDER BY</code> 作为主键索引。</p>
 <p>如果同时写了 <code>PRIMARY KEY</code> 和 <code>ORDER BY</code>，主键必须是排序键的前缀。例如：</p>
 <figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> (id, sku_id)</span><br></pre></td></tr></table></figure>
 
@@ -350,8 +347,60 @@
 
 <p>因为 <code>sku_id</code> 不是排序键的前缀。</p>
 <p>设计 <code>ORDER BY</code> 时要围绕查询条件来想：哪些字段最常出现在过滤条件里，哪些字段能有效缩小扫描范围，通常就应该优先放在前面。</p>
-<h2 id="5-7-二级索引"><a href="#5-7-二级索引" class="headerlink" title="5.7 二级索引"></a>5.7 二级索引</h2><p>todo</p>
-<h2 id="5-8-数据-DDL"><a href="#5-8-数据-DDL" class="headerlink" title="5.8 数据 DDL"></a>5.8 数据 DDL</h2><p>todo</p>
+<h2 id="5-7-二级索引"><a href="#5-7-二级索引" class="headerlink" title="5.7 二级索引"></a>5.7 二级索引</h2><p>主键索引只对排序键前缀有效，如果过滤条件落在非排序键字段上，就只能全表扫。二级索引（官方叫 data skipping index，跳数索引）就是为这种场景准备的：类似跳表再加一层，在稀疏主键索引之上再叠一层粗粒度的摘要信息。</p>
+<p>它的粒度由 <code>GRANULARITY</code> 决定，单位是 granule 个数。<code>GRANULARITY 3</code> 表示每 3 个 granule 记录一条索引条目，查询时先读这层摘要，摘要说明”这几个 granule 里不可能有目标值”就直接跳过，不读数据文件。</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE TABLE</span> skip_demo</span><br><span class="line">(</span><br><span class="line">    id UInt64,</span><br><span class="line">    user_id UInt64,</span><br><span class="line">    url String,</span><br><span class="line">    visit_time DateTime,</span><br><span class="line">    INDEX idx_user user_id TYPE minmax GRANULARITY <span class="number">3</span>,</span><br><span class="line">    INDEX idx_url url TYPE bloom_filter(<span class="number">0.01</span>) GRANULARITY <span class="number">4</span></span><br><span class="line">)</span><br><span class="line">ENGINE <span class="operator">=</span> MergeTree</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> id</span><br><span class="line">SETTINGS index_granularity <span class="operator">=</span> <span class="number">8192</span>;</span><br></pre></td></tr></table></figure>
+
+<p>常见的索引类型有几种：</p>
+<p><code>minmax</code> 记录每段数据里该字段的最小值和最大值，适合单调或者聚集分布的字段，比如自增 ID、时间戳。</p>
+<p><code>set(max_rows)</code> 记录每段数据里出现过的去重值集合，超过 <code>max_rows</code> 就放弃这段，适合基数不高的枚举字段。</p>
+<p><code>bloom_filter(false_positive)</code> 用布隆过滤器判断值是否可能存在，只能加速等值查询，不能做范围。</p>
+<p><code>ngrambf_v1</code> 和 <code>tokenbf_v1</code> 是给字符串 <code>LIKE</code>、<code>IN</code> 这类模糊匹配准备的，把字符串切成 n-gram 或者按分隔符切成 token 再进布隆过滤器。</p>
+<p>写入之后，索引会在 part 目录里落成独立文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">skp_idx_idx_url.cmrk2</span><br><span class="line">skp_idx_idx_url.idx</span><br><span class="line">skp_idx_idx_user.idx2</span><br><span class="line">skp_idx_idx_user.cmrk2</span><br></pre></td></tr></table></figure>
+
+<p>索引到底有没有生效，用 <code>EXPLAIN indexes = 1</code> 看最直观。往表里灌 100 万行、<code>user_id</code> 按 <code>intDiv(number, 1000)</code> 生成（也就是和 <code>id</code> 同向递增）之后：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">EXPLAIN indexes <span class="operator">=</span> <span class="number">1</span> <span class="keyword">SELECT</span> <span class="built_in">count</span>() <span class="keyword">FROM</span> skip_demo <span class="keyword">WHERE</span> user_id <span class="operator">=</span> <span class="number">500</span>;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">ReadFromMergeTree (default.skip_demo)</span><br><span class="line">      Parts: 1 | Granules: 3</span><br><span class="line">      Indexes:</span><br><span class="line">        PrimaryKey</span><br><span class="line">          Condition: true</span><br><span class="line">          Granules: 123/123</span><br><span class="line">        Skip</span><br><span class="line">          Name: idx_user</span><br><span class="line">          Description: minmax GRANULARITY 3</span><br><span class="line">          Condition: (user_id in [500, 500])</span><br><span class="line">          Granules: 3/123</span><br></pre></td></tr></table></figure>
+
+<p>主键索引没能筛掉任何东西（<code>123/123</code>），<code>idx_user</code> 把 123 个 granule 砍到 3 个。因为 <code>user_id</code> 和排序键同向递增，每段的 min&#x2F;max 区间互不重叠，<code>minmax</code> 在这种数据分布下效果最好。</p>
+<p>反过来看 <code>url</code>：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">EXPLAIN indexes <span class="operator">=</span> <span class="number">1</span> <span class="keyword">SELECT</span> <span class="built_in">count</span>() <span class="keyword">FROM</span> skip_demo <span class="keyword">WHERE</span> url <span class="operator">=</span> <span class="string">&#x27;/p/321&#x27;</span>;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">Skip</span><br><span class="line">  Name: idx_url</span><br><span class="line">  Description: bloom_filter GRANULARITY 4</span><br><span class="line">  Granules: 123/123</span><br></pre></td></tr></table></figure>
+
+<p>一个 granule 都没跳掉。<code>url</code> 是 <code>number % 5000</code> 生成的，每个值在整张表里均匀散布，几乎每段数据都命中，布隆过滤器只能一路返回”可能存在”。这也是二级索引最容易踩的坑：字段分布和排序键完全无关时，索引白建，还要额外付写入和存储成本。</p>
+<p>调试的时候可以加 <code>force_data_skipping_indices</code> 强制要求用上某个索引，用不上直接报错，避免自己以为生效了：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> <span class="built_in">count</span>() <span class="keyword">FROM</span> skip_demo</span><br><span class="line"><span class="keyword">WHERE</span> user_id <span class="operator">=</span> <span class="number">500</span></span><br><span class="line">SETTINGS force_data_skipping_indices <span class="operator">=</span> <span class="string">&#x27;idx_user&#x27;</span>;</span><br></pre></td></tr></table></figure>
+
+<h2 id="5-8-TTL"><a href="#5-8-TTL" class="headerlink" title="5.8 TTL"></a>5.8 TTL</h2><p>TTL 让数据到期自动清理，省掉外面写定时任务删历史数据。它分两个级别：字段级和表级。</p>
+<p>字段级 TTL 过期后清掉的是单个字段，行还在，值被重置成该类型的默认值：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE TABLE</span> ttl_demo</span><br><span class="line">(</span><br><span class="line">    id UInt64,</span><br><span class="line">    create_time DateTime,</span><br><span class="line">    url String TTL create_time <span class="operator">+</span> <span class="type">INTERVAL</span> <span class="number">1</span> <span class="keyword">DAY</span>,</span><br><span class="line">    cost <span class="type">Decimal</span>(<span class="number">10</span>,<span class="number">2</span>) TTL create_time <span class="operator">+</span> <span class="type">INTERVAL</span> <span class="number">1</span> <span class="keyword">DAY</span></span><br><span class="line">)</span><br><span class="line">ENGINE <span class="operator">=</span> MergeTree</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> id;</span><br><span class="line"></span><br><span class="line"><span class="keyword">INSERT INTO</span> ttl_demo <span class="keyword">VALUES</span></span><br><span class="line">    (<span class="number">1</span>, now() <span class="operator">-</span> <span class="type">INTERVAL</span> <span class="number">3</span> <span class="keyword">DAY</span>, <span class="string">&#x27;/old&#x27;</span>, <span class="number">12.34</span>),</span><br><span class="line">    (<span class="number">2</span>, now(), <span class="string">&#x27;/new&#x27;</span>, <span class="number">56.78</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> ttl_demo <span class="keyword">ORDER</span> <span class="keyword">BY</span> id;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">1	2026-08-02 07:55:11		0</span><br><span class="line">2	2026-08-05 07:55:11	/new	56.78</span><br></pre></td></tr></table></figure>
+
+<p>第一行的 <code>create_time</code> 已经过期三天，<code>url</code> 变成空字符串，<code>cost</code> 变成 <code>0</code>，但 <code>id</code> 和 <code>create_time</code> 保留。注意 TTL 字段本身不能设 TTL，否则没有判断依据。</p>
+<p>表级 TTL 过期后删掉的是整行：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE TABLE</span> ttl_table_demo</span><br><span class="line">(</span><br><span class="line">    id UInt64,</span><br><span class="line">    create_time DateTime,</span><br><span class="line">    url String</span><br><span class="line">)</span><br><span class="line">ENGINE <span class="operator">=</span> MergeTree</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> id</span><br><span class="line">TTL create_time <span class="operator">+</span> <span class="type">INTERVAL</span> <span class="number">1</span> <span class="keyword">DAY</span>;</span><br><span class="line"></span><br><span class="line"><span class="keyword">INSERT INTO</span> ttl_table_demo <span class="keyword">VALUES</span></span><br><span class="line">    (<span class="number">1</span>, now() <span class="operator">-</span> <span class="type">INTERVAL</span> <span class="number">3</span> <span class="keyword">DAY</span>, <span class="string">&#x27;/old&#x27;</span>),</span><br><span class="line">    (<span class="number">2</span>, now(), <span class="string">&#x27;/new&#x27;</span>);</span><br><span class="line"></span><br><span class="line"><span class="keyword">SELECT</span> <span class="operator">*</span> <span class="keyword">FROM</span> ttl_table_demo <span class="keyword">ORDER</span> <span class="keyword">BY</span> id;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">2	2026-08-05 07:55:22	/new</span><br></pre></td></tr></table></figure>
+
+<p>过期那行直接没了。</p>
+<p>要留意清理的时机：TTL 不是到点就有个线程精确地把行删掉，而是搭在写入和后台合并流程上，part 被合并时才检查并丢弃过期数据。所以过期数据可能在磁盘上多待一会儿，<code>SELECT</code> 也可能短暂读到还没清理的行。想立刻生效可以手动触发：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">OPTIMIZE <span class="keyword">TABLE</span> ttl_table_demo <span class="keyword">FINAL</span>;</span><br><span class="line"><span class="keyword">ALTER TABLE</span> ttl_demo MATERIALIZE TTL;</span><br></pre></td></tr></table></figure>
+
+<p><code>OPTIMIZE ... FINAL</code> 强制合并，顺带完成清理；<code>MATERIALIZE TTL</code> 是给已经存在的数据补跑一遍 TTL 规则，改完 TTL 定义之后需要它，否则新规则只对之后写入和合并的数据生效。</p>
+<p>每个 part 的 TTL 状态可以在 <code>system.parts</code> 里查：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">SELECT</span> name, <span class="keyword">rows</span>, delete_ttl_info_min, delete_ttl_info_max</span><br><span class="line"><span class="keyword">FROM</span> system.parts</span><br><span class="line"><span class="keyword">WHERE</span> <span class="keyword">table</span> <span class="operator">=</span> <span class="string">&#x27;ttl_table_demo&#x27;</span> <span class="keyword">AND</span> active;</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">name:                all_1_1_2</span><br><span class="line">rows:                1</span><br><span class="line">delete_ttl_info_min: 2026-08-06 07:55:22</span><br><span class="line">delete_ttl_info_max: 2026-08-06 07:55:22</span><br></pre></td></tr></table></figure>
+
+<p><code>delete_ttl_info_min/max</code> 是这个 part 里数据的最早和最晚过期时间，后台合并靠它判断有没有可清理的东西。</p>
+<p>除了删除，TTL 还能做数据分层，把老数据挪到便宜的存储上：</p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">TTL create_time <span class="operator">+</span> <span class="type">INTERVAL</span> <span class="number">7</span> <span class="keyword">DAY</span> <span class="keyword">TO</span> VOLUME <span class="string">&#x27;cold&#x27;</span>,</span><br><span class="line">    create_time <span class="operator">+</span> <span class="type">INTERVAL</span> <span class="number">30</span> <span class="keyword">DAY</span> <span class="keyword">DELETE</span></span><br></pre></td></tr></table></figure>
+
+<p>热数据留在 SSD，七天后转到冷卷，三十天后删掉，前提是配好了多卷的 storage policy。</p>
 
       
     </div>
