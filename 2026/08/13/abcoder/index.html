@@ -14,7 +14,7 @@
 <meta property="og:description" content="ABCoder 把代码仓库预先解析成一张语言无关的”节点图”，再通过 MCP 交给大模型查询。">
 <meta property="og:locale" content="en_US">
 <meta property="article:published_time" content="2026-08-12T16:00:00.000Z">
-<meta property="article:modified_time" content="2026-08-13T08:46:02.114Z">
+<meta property="article:modified_time" content="2026-08-14T02:39:32.129Z">
 <meta property="article:author" content="John Doe">
 <meta property="article:tag" content="ai">
 <meta property="article:tag" content="ai工具">
@@ -112,8 +112,7 @@
 
 <h1 id="1-AI-读代码的两个瓶颈"><a href="#1-AI-读代码的两个瓶颈" class="headerlink" title="1. AI 读代码的两个瓶颈"></a>1. AI 读代码的两个瓶颈</h1><p>现在的 AI 编码工具看代码，基本靠两个动作：<code>grep</code> 找关键词，<code>read</code> 读文件。</p>
 <p>第一个瓶颈是<strong>语义缺失</strong>。<code>GetSession</code> 这个名字在十个文件里出现过，哪一个是定义？谁调用了它？改掉它的签名会崩在哪里？它实现了哪个接口？纯文本检索给不出答案。</p>
-<p>更麻烦的是这种幻觉很难被发现。模型说”这个函数只在 A 处被调用”，听起来言之凿凿，实际它只 grep 了一轮。你不去核对根本看不出来。</p>
-<p>第二个瓶颈是<strong>上下文预算</strong>。想搞清一个函数的来龙去脉，传统做法是把整个文件读进上下文。几百上千行里可能只有二十行相关。读三五个文件，窗口就见底了，模型开始遗忘前面的信息。</p>
+<p>第二个瓶颈是<strong>上下文预算</strong>。想搞清一个函数，传统做法是把整个文件读进上下文。几百上千行里可能只有二十行相关。读三五个文件，窗口就见底了，模型开始遗忘前面的信息。</p>
 <p>这两个问题有个共同的根源：<strong>代码的结构信息在读取的那一刻被丢掉了。</strong> 源文件对编译器来说是有类型、有作用域、有调用图的，但按行读进大模型之后，它就变成了一堆字符串。</p>
 <p>ABCoder 的思路是把顺序倒过来。<strong>先离线用编译器&#x2F;LSP 级别的工具把整个仓库解析成一张图，每个函数、类型、全局变量都是一个有唯一 ID 的节点，节点之间的依赖和引用关系是算出来的事实。</strong> 然后把这张图通过 MCP 暴露给模型。</p>
 <p>模型不再”读文件猜”，而是”查图取事实”。</p>
@@ -223,11 +222,8 @@
 <p>这个命令把目录下所有 AST 全载进内存，对外暴露五个 MCP 工具：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">list_repos → get_repo_structure → get_package_structure → get_file_structure → get_ast_node</span><br><span class="line">     │              │                      │                       │                  │</span><br><span class="line">  仓库列表       模块/包/文件           文件+节点名            +签名+行号        正文+全部关系</span><br></pre></td></tr></table></figure>
 
-<p>这五个工具的描述文字很有意思，值得单独说。</p>
-<h2 id="4-1-工具描述就是提示词"><a href="#4-1-工具描述就是提示词" class="headerlink" title="4.1 工具描述就是提示词"></a>4.1 工具描述就是提示词</h2><p>模型看不到 ABCoder 的源码。对每个 MCP 工具，它能看到的只有三样：<strong>工具名、一段描述文字、参数的 JSON schema</strong>。这些会被拼进系统提示词发过去。</p>
-<p>所以工具描述不是给人看的文档，<strong>它就是提示词</strong>。这块空间是你唯一能影响模型如何使用工具的地方。</p>
-<p>大部分 MCP server 就老老实实写一句”这个工具做什么”。ABCoder 把这块空间当指令通道用了：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">list_repos            [DISCOVERY] level1/4: List all repositories. No parameters</span><br><span class="line">                      required. Always the first step in any analysis workflow.</span><br><span class="line"></span><br><span class="line">get_repo_structure    [STRUCTURE] level2/4: Get repository structure.</span><br><span class="line">                      Input: repo_name from list_repos output.</span><br><span class="line"></span><br><span class="line">get_package_structure [STRUCTURE] level3/4: Get package structure with node_ids.</span><br><span class="line">                      Input: repo_name, mod_path, pkg_path from get_repo_structure output.</span><br><span class="line"></span><br><span class="line">get_file_structure    [STRUCTURE] level3/4: Get file structure with node list.</span><br><span class="line">                      Input: repo_name, file_path from get_repo_structure output.</span><br><span class="line"></span><br><span class="line">get_ast_node          [ANALYSIS]  level4/4: Get detailed AST node info.</span><br><span class="line">                      Input: repo_name, node_ids from previous calls.</span><br></pre></td></tr></table></figure>
+
+<h2 id="4-1-工具描述就是提示词"><a href="#4-1-工具描述就是提示词" class="headerlink" title="4.1 工具描述就是提示词"></a>4.1 工具描述就是提示词</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">list_repos            [DISCOVERY] level1/4: List all repositories. No parameters</span><br><span class="line">                      required. Always the first step in any analysis workflow.</span><br><span class="line"></span><br><span class="line">get_repo_structure    [STRUCTURE] level2/4: Get repository structure.</span><br><span class="line">                      Input: repo_name from list_repos output.</span><br><span class="line"></span><br><span class="line">get_package_structure [STRUCTURE] level3/4: Get package structure with node_ids.</span><br><span class="line">                      Input: repo_name, mod_path, pkg_path from get_repo_structure output.</span><br><span class="line"></span><br><span class="line">get_file_structure    [STRUCTURE] level3/4: Get file structure with node list.</span><br><span class="line">                      Input: repo_name, file_path from get_repo_structure output.</span><br><span class="line"></span><br><span class="line">get_ast_node          [ANALYSIS]  level4/4: Get detailed AST node info.</span><br><span class="line">                      Input: repo_name, node_ids from previous calls.</span><br></pre></td></tr></table></figure>
 
 <p>除了”这个工具做什么”，这里还塞进了三种信息：</p>
 <p><strong>阶段编号。</strong> <code>level1/4</code> 到 <code>level4/4</code>，告诉模型总共几步、现在在第几步。顺带一个细节：<code>get_package_structure</code> 和 <code>get_file_structure</code> 都标 <code>level3/4</code>，它们是同一层的两个<strong>并列选择</strong>，不是先后关系——按包看还是按文件看，挑一个。</p>
@@ -244,8 +240,8 @@
 
 <p>关键在于<strong>每一层只给下一步决策所需的最少信息</strong>：</p>
 <p>第三层只给节点名，不给代码正文——列目录的阶段不需要看代码。</p>
-<p>第四层才补上签名和行号。这一层能一眼看清整个文件的 API 面貌，仍然不含函数体。对”照着现有风格加个方法”这种需求，看到这里往往就够了。</p>
-<p>第五层才给正文。而且节点 ID 是数组，一次请求可以捞多个节点，整条调用链一轮对话拉齐。</p>
+<p>第四层才补上签名和行号。这一层能一眼看清整个文件的 API 面貌，仍然不含函数体。</p>
+<p>第五层才给正文。</p>
 <p>这套渐进式披露直接对应第一节说的上下文预算问题。传统做法读三个文件可能烧掉几千 token 且大部分无关；这里前四层加起来可能几百 token，精确锁定目标之后才付费加载正文。</p>
 <h1 id="5-自动保鲜"><a href="#5-自动保鲜" class="headerlink" title="5. 自动保鲜"></a>5. 自动保鲜</h1><p>AST 是代码的快照。它的保鲜是两层独立机制拼起来的，很多人会看混：</p>
 <ul>
@@ -294,16 +290,15 @@
 <figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">  <span class="attr">&quot;decision&quot;</span><span class="punctuation">:</span> <span class="string">&quot;block&quot;</span><span class="punctuation">,</span></span><br><span class="line">  <span class="attr">&quot;reason&quot;</span><span class="punctuation">:</span> <span class="string">&quot;abcoder parse 失败（语言：go，退出码: 1）。错误信息：\n&lt;真实的编译错误&gt;\n\n可能的原因：\n1. 项目配置文件有问题（Go: go.mod；TS: tsconfig.json）\n2. 缺少依赖包\n3. 代码语法错误\n\n建议：\n- Go 项目：运行 go mod tidy 和 go build 检查\n- TS 项目：运行 npm install 和 tsc --noEmit 检查&quot;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
 
 
-<p><code>reason</code> 模型拿到的不是”失败了”，而是一份能立刻行动的诊断报告。它会转头去修构建，而不是绕过这个工具改用 <code>grep</code>。</p>
-<p>设计意图很明确：<strong>代码编译不过的时候，宁可拦住 AI，也不让它拿着旧 AST 继续干活。</strong></p>
+<p>模型拿到的不是”失败了”，而是一份能立刻行动的诊断报告。它会转头去修构建，而不是绕过这个工具改用 <code>grep</code>。</p>
 <h2 id="6-1-三层行为约束"><a href="#6-1-三层行为约束" class="headerlink" title="6.1 三层行为约束"></a>6.1 三层行为约束</h2><p>还剩一个问题：<strong>模型会不会真的去用这些工具？</strong></p>
 <p>三层的时机分布：</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">会话开始 ────────────────────────────────────────────→ 会话结束</span><br><span class="line">    │</span><br><span class="line">    │  CLAUDE.md 载入（第三层：长期方向）</span><br><span class="line">    │  &quot;代码分析优先级：mcp__abcoder &gt; Read/Search&quot;</span><br><span class="line">    │  全程有效，但随上下文变长逐渐被稀释</span><br><span class="line">    │</span><br><span class="line">    ├─ 模型要挑工具了 ← 工具描述（第一层：决策参考）</span><br><span class="line">    │   每次选择都会重新看到 level1/4、参数来源</span><br><span class="line">    │</span><br><span class="line">    ├─ 调了 get_repo_structure，拿到目录结构</span><br><span class="line">    │   ↓ PostToolUse hook 立刻插入（第二层：即时干预）</span><br><span class="line">    │   &quot;&lt;system-reminder&gt; 定位到目标节点后，MUST 继续调 get_ast_node...&quot;</span><br><span class="line">    │   ↑ 就在这个动作刚结束、下一步还没决定的瞬间</span><br><span class="line">    │</span><br><span class="line">    └─ 继续往第四层走，而不是觉得&quot;结构看够了&quot;就开始写</span><br></pre></td></tr></table></figure>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">会话开始 ────────────────────────────────────────────→ 会话结束</span><br><span class="line">    │</span><br><span class="line">    │  CLAUDE.md 载入（第三层：长期方向）</span><br><span class="line">    │  &quot;代码分析优先级：mcp__abcoder &gt; Read/Search&quot;</span><br><span class="line">    │  全程有效，但随上下文变长逐渐被稀释</span><br><span class="line">    │</span><br><span class="line">    ├─ 模型要挑工具了 ← 工具描述（第一层：决策参考）</span><br><span class="line">    │   每次选择都会重新看到 level1/4、参数来源</span><br><span class="line">    │</span><br><span class="line">    ├─ 调了 get_repo_structure，拿到目录结构</span><br><span class="line">    │   ↓ PostToolUse hook 立刻插入（第二层：即时干预）</span><br><span class="line">    │   &quot;&lt;system-reminder&gt; 定位到目标节点后，MUST 继续调 get_ast_node...&quot;</span><br><span class="line">    │</span><br><span class="line">    │</span><br><span class="line">    └─ 继续往第四层走，而不是觉得&quot;结构看够了&quot;就开始写</span><br></pre></td></tr></table></figure>
 
 <p><strong>第三层，<code>CLAUDE.md</code> 里的硬规则</strong></p>
 <p>它在会话开始时载入，管全程。短板是离得越来越远——聊到第 50 轮，开头这段规则在注意力里的权重已经很低了。</p>
 <p><strong>第一层，工具描述里的层级标注</strong>，管每次选择。</p>
-<p>这里要强调一遍：<code>level1/4</code> 是注册工具时作为 description 传进去。</p>
+<p><code>level1/4</code> 是注册工具时作为 description 传进去。</p>
 <p><strong>第二层，hook 注入的提醒</strong></p>
 <p>ABCoder 一共配了四个 hook：</p>
 <table>
@@ -346,19 +341,17 @@
 <p>于是模型在调 <code>get_repo_structure</code> 那一轮，实际收到的上下文是三个来源拼起来的：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">工具列表（每轮请求都带）</span><br><span class="line">  list_repos:   &quot;[DISCOVERY] level1/4: ...&quot;     ← abcoder 二进制里的常量</span><br><span class="line">  get_ast_node: &quot;[ANALYSIS]  level4/4: ...&quot;     ← 同上</span><br><span class="line"></span><br><span class="line">── 本轮工具结果 ──</span><br><span class="line">  &#123; &quot;modules&quot;: [...] &#125;                          ← MCP server 返回的真实数据</span><br><span class="line">  &lt;system-reminder&gt;...MUST use get_ast_node...  ← reminder.sh 注入</span><br></pre></td></tr></table></figure>
 
-<p>层级标注在最上面的工具列表里，hook 注入的内容在下面的工具结果旁边，两者隔得很远，是两条独立通道。</p>
-<h2 id="6-2-subagent-是个漏洞"><a href="#6-2-subagent-是个漏洞" class="headerlink" title="6.2 subagent 是个漏洞"></a>6.2 subagent 是个漏洞</h2><p>Claude Code 可以派 subagent 干活，而 subagent 是<strong>全新的上下文</strong>——主对话里积累的一切它都看不到，包括你反复强调的那些约束。</p>
-<p>于是会出现这种情况：主对话老老实实走完了四层下钻，然后派一个 subagent 去分析另一个模块，subagent 一无所知，直接开始 <code>grep</code>。整套精确性在这里漏掉了。</p>
-<p>ABCoder 的规则是：派 subagent 做代码分析时，<strong>要在给它的任务描述里明确写上”用 <code>get_ast_node</code>“</strong>，因为那段任务描述是 subagent 唯一能看到的上下文。</p>
-<p>这其实是第二层思路的延伸——<strong>约束必须出现在它能被看到的地方</strong>，写在别处等于没写。</p>
-<h2 id="6-3-三个斜杠命令"><a href="#6-3-三个斜杠命令" class="headerlink" title="6.3 三个斜杠命令"></a>6.3 三个斜杠命令</h2><p>配套还有一套工作流，不是必需但是官方主推的：</p>
+
+
+
+<h2 id="6-2-三个斜杠命令"><a href="#6-2-三个斜杠命令" class="headerlink" title="6.2 三个斜杠命令"></a>6.2 三个斜杠命令</h2><p>配套还有一套工作流，不是必需但是官方主推的：</p>
 <figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">/abcoder:schedule &lt;需求&gt;   → 用 AST 分析代码库，产出技术方案</span><br><span class="line">/abcoder:task &lt;名字&gt;       → 生成 CODE_TASK 文档，写好精确的节点 ID</span><br><span class="line">/abcoder:recheck &lt;任务&gt;    → 复查可行性，重点验证外部依赖</span><br><span class="line">然后才开始写代码</span><br></pre></td></tr></table></figure>
 
-<p>核心想法是<strong>把”要改哪些节点”在方案阶段就用节点 ID 钉死</strong>。写代码时子 agent 直接按 ID 取上下文，不用重新摸索。这也是在对抗上下文预算——方案阶段的探索成本只付一次。</p>
-<h1 id="7-小结"><a href="#7-小结" class="headerlink" title="7. 小结"></a>7. 小结</h1><p>ABCoder 的核心命题是：<strong>把代码理解从文本检索换成图查询。</strong></p>
+<p>核心想法是把”要改哪些节点”在方案阶段就用节点 ID 钉死。写代码时子 agent 直接按 ID 取上下文，不用重新摸索。</p>
+<h1 id="7-小结"><a href="#7-小结" class="headerlink" title="7. 小结"></a>7. 小结</h1><p>ABCoder 的核心是：<strong>把代码理解从文本检索换成图查询。</strong></p>
 <p><strong>UniAST 的双层结构。</strong> 内容层按层级嵌套服务浏览，关系层扁平哈希服务查询，三段式 ID 保证全局唯一。反向引用边把”谁调用了我”从一次不保证完整的全仓搜索，变成一次确定的查表。</p>
 <p><strong>四层下钻的渐进式披露。</strong> 每层只给下一步决策所需的最少信息，代码正文留到最后一层才加载。工具描述里写死层级标注，用提示词约束调用顺序。这是在正面解决上下文预算问题。</p>
-<p><strong>保鲜的两层解耦。</strong> 文件监听管内存新鲜度，hook 管磁盘新鲜度，中间只靠一个 JSON 文件通信。hook 挂在查询前而非编辑后，用懒惰求值天然合并连续编辑；解析失败直接拦住 AI 并回灌可执行的修复建议，宁可硬失败也不悄悄降级。</p>
+<p><strong>保鲜的两层解耦。</strong> 文件监听管内存新鲜度，hook 管磁盘新鲜度，中间只靠一个 JSON 文件通信。hook 挂在查询前而非编辑后，用懒惰求值天然合并连续编辑。</p>
 
       
     </div>
